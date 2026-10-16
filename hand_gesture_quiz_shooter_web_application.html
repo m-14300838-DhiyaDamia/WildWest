@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HAND GESTURE QUIZ SHOOTER</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for Wild West Saloon Aesthetic -->
+    <link href="https://fonts.googleapis.com/css2?family=Rye&family=Sancreek&family=Eczar:wght@500;700;800&family=Trade+Winds&display=swap" rel="stylesheet">
+    <!-- MediaPipe Hands & Camera Utils loaded with fallback handling -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <!-- FontAwesome for UI Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Eczar', serif;
+            background-color: #120904;
+            color: #f3e5ab;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .font-rye { font-family: 'Rye', cursive; }
+        .font-trade { font-family: 'Trade Winds', cursive; }
+
+        /* Saloon Wood Panel Styling */
+        .wood-panel {
+            background: radial-gradient(circle, rgba(62, 39, 35, 0.96) 0%, rgba(28, 16, 9, 0.98) 100%);
+            border: 4px solid #8d5b28;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(0, 0, 0, 0.8);
+            border-radius: 16px;
+        }
+
+        .wanted-poster {
+            background: #f4e4bc;
+            color: #3b220c;
+            border: 4px dashed #7a4b1e;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.85);
+            background-image: radial-gradient(#e0cf9b 15%, transparent 16%);
+            background-size: 16px 16px;
+        }
+
+        /* Target Cards */
+        .target-card {
+            transition: transform 0.1s ease-out, border-color 0.2s, box-shadow 0.2s;
+            transform-origin: center bottom;
+            background: linear-gradient(145deg, #3a2213, #1e0e05);
+            border: 4px solid #8d5b28;
+            border-radius: 20px;
+        }
+
+        .target-card.aim-hover {
+            transform: scale(1.05) translateY(-6px);
+            border-color: #f59e0b;
+            box-shadow: 0 0 30px rgba(245, 158, 11, 0.7), inset 0 0 20px rgba(245, 158, 11, 0.4);
+            background: linear-gradient(145deg, #57331a, #2e170a);
+        }
+
+        .target-card.target-correct {
+            border-color: #22c55e !important;
+            background: rgba(34, 197, 94, 0.35) !important;
+            box-shadow: 0 0 40px rgba(34, 197, 94, 0.9) !important;
+        }
+
+        .target-card.target-incorrect {
+            border-color: #ef4444 !important;
+            background: rgba(239, 68, 68, 0.35) !important;
+            box-shadow: 0 0 40px rgba(239, 68, 68, 0.9) !important;
+        }
+
+        /* Animated Target Motion Modes for L2 and L3 */
+        @keyframes sway-slow {
+            0%, 100% { transform: translateY(0px) rotate(-1.5deg); }
+            50% { transform: translateY(-10px) rotate(1.5deg); }
+        }
+
+        @keyframes sway-fast {
+            0%, 100% { transform: translateX(-12px) translateY(0px); }
+            50% { transform: translateX(12px) translateY(-8px); }
+        }
+
+        .level-2-motion { animation: sway-slow 3s ease-in-out infinite; }
+        .level-3-motion { animation: sway-fast 1.8s ease-in-out infinite; }
+
+        .vignette {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.95);
+            z-index: 40;
+        }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #120904; }
+        ::-webkit-scrollbar-thumb { background: #8d5b28; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #f59e0b; }
+    </style>
+</head>
+<body class="bg-stone-950 text-amber-100 min-h-screen relative flex flex-col justify-between select-none overflow-hidden">
+    <div class="vignette"></div>
+
+    <canvas id="fxCanvas" class="absolute inset-0 z-30 pointer-events-none"></canvas>
+
+    <div id="crosshair" class="fixed z-50 pointer-events-none transition-transform duration-75 ease-out -translate-x-1/2 -translate-y-1/2 hidden">
+        <div class="relative w-16 h-16 flex items-center justify-center">
+            <div class="absolute inset-0 border-2 border-amber-500 rounded-full animate-ping opacity-75"></div>
+            <div class="absolute inset-0 border-2 border-amber-400 rounded-full shadow-[0_0_20px_#f59e0b]"></div>
+            <div class="w-3 h-3 bg-amber-300 rounded-full shadow-[0_0_12px_#fbbf24]"></div>
+            <div class="absolute w-full h-[2px] bg-amber-500/80"></div>
+            <div class="absolute h-full w-[2px] bg-amber-500/80"></div>
+            <i class="fa-solid fa-crosshairs text-amber-400 text-3xl absolute"></i>
+        </div>
+    </div>
+
+    <!-- Hidden Raw Video Element for MediaPipe Tracking -->
+    <video id="webcamVideo" class="hidden" playsinline muted autoplay></video>
+
+    <div class="relative z-10 flex flex-col justify-between h-screen p-4 max-w-7xl mx-auto w-full">
+
+        <header class="wood-panel p-3 md:p-4 flex justify-between items-center relative z-20 border-b-4 border-amber-700">
+            <div class="flex items-center gap-3">
+                <div class="bg-amber-900/70 p-2.5 rounded-xl border border-amber-600/60 shadow-inner">
+                    <i class="fa-solid fa-hat-cowboy text-amber-400 text-2xl md:text-3xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-rye text-lg md:text-2xl tracking-wider text-amber-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+                        HAND GESTURE QUIZ SHOOTER
+                    </h1>
+                    <p class="text-[10px] md:text-xs text-amber-200/80 font-bold tracking-widest uppercase">
+                        PUSAT PENGAJIAN DIPLOMA • JTM SALOON
+                    </p>
+                </div>
+            </div>
+
+            <div id="gameplayHud" class="hidden flex items-center gap-4 md:gap-6 font-rye">
+                <div id="hudLevelBadge" class="px-3 py-1 bg-amber-900/90 border border-amber-500 rounded-xl text-xs text-amber-300 font-bold uppercase tracking-wider">
+                    LEVEL 1
+                </div>
+
+                <div class="bg-stone-900/90 px-3 py-1.5 rounded-xl border border-amber-700/60 text-center min-w-[90px]">
+                    <span class="block text-[9px] text-amber-300/70 uppercase tracking-widest">BOUNTY</span>
+                    <span id="scoreText" class="text-xl font-bold text-amber-400">$0</span>
+                </div>
+
+                <div id="hudLivesBox" class="bg-stone-900/90 px-3 py-1.5 rounded-xl border border-amber-700/60 text-center">
+                    <span class="block text-[9px] text-amber-300/70 uppercase tracking-widest mb-0.5">SHERIFF STARS</span>
+                    <div id="livesContainer" class="flex gap-1 text-amber-400 text-sm">
+                        <i class="fa-solid fa-star"></i>
+                        <i class="fa-solid fa-star"></i>
+                        <i class="fa-solid fa-star"></i>
+                    </div>
+                </div>
+
+                <div id="hudTimerBox" class="bg-stone-900/90 px-3 py-1.5 rounded-xl border border-amber-700/60 text-center min-w-[70px]">
+                    <span class="block text-[9px] text-amber-300/70 uppercase tracking-widest">TIME</span>
+                    <span id="timerText" class="text-xl font-bold text-amber-500">20s</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button id="modeToggleBtn" class="p-2 rounded-xl wood-panel hover:bg-amber-900/60 text-amber-300 transition text-xs font-mono flex items-center gap-1.5" title="Toggle Input Mode">
+                    <i class="fa-solid fa-video text-base"></i>
+                    <span id="modeToggleText" class="hidden md:inline">WEBCAM</span>
+                </button>
+                <button id="soundToggleBtn" class="p-2 rounded-xl wood-panel hover:bg-amber-900/60 text-amber-300 transition" title="Toggle Audio">
+                    <i class="fa-solid fa-volume-high text-base"></i>
+                </button>
+                <button id="fullscreenBtn" class="p-2 rounded-xl wood-panel hover:bg-amber-900/60 text-amber-300 transition" title="Toggle Fullscreen">
+                    <i class="fa-solid fa-expand text-base"></i>
+                </button>
+            </div>
+        </header>
+
+        <main id="startScreen" class="flex-1 flex items-center justify-center py-4 relative z-20">
+            <div class="wood-panel rounded-3xl p-6 md:p-8 max-w-xl w-full flex flex-col gap-5 border-2 border-amber-600 text-center shadow-2xl">
+                <div class="space-y-2">
+                    <span class="px-3 py-1 bg-amber-900/80 border border-amber-500/60 rounded-full text-xs text-amber-300 font-bold tracking-wider uppercase">
+                        ★ MISSION CHALLENGE ★
+                    </span>
+                    <h2 class="text-3xl md:text-5xl font-rye text-amber-400 tracking-wide drop-shadow-[0_4px_8px_rgba(0,0,0,0.9)]">
+                        HAND GESTURE QUIZ SHOOTER
+                    </h2>
+                    <p class="text-xs md:text-sm text-amber-200/90 max-w-md mx-auto">
+                        Welcome, Cowboy! Point index finger to aim and bend thumb down to shoot. (Mouse mode automatically activates if camera is unavailable).
+                    </p>
+                </div>
+
+                <div class="flex flex-col gap-3 max-w-xs mx-auto w-full pt-2 font-rye">
+                    <button id="btnStartGame" class="py-3 px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-stone-950 text-sm tracking-wider border-2 border-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.6)] transition">
+                        <i class="fa-solid fa-play mr-2"></i> START GAME
+                    </button>
+                    <button id="btnHowToPlay" class="py-3 px-6 rounded-2xl bg-amber-900/80 hover:bg-amber-800 text-amber-200 text-sm border border-amber-600 transition">
+                        <i class="fa-solid fa-circle-question mr-2"></i> HOW TO PLAY
+                    </button>
+                    <button id="btnCalibration" class="py-3 px-6 rounded-2xl bg-amber-900/80 hover:bg-amber-800 text-amber-200 text-sm border border-amber-600 transition">
+                        <i class="fa-solid fa-hand mr-2"></i> CALIBRATION
+                    </button>
+                    <button id="btnSettings" class="py-3 px-6 rounded-2xl bg-amber-900/80 hover:bg-amber-800 text-amber-200 text-sm border border-amber-600 transition">
+                        <i class="fa-solid fa-sliders mr-2"></i> SETTINGS
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <main id="howToPlayScreen" class="hidden flex-1 flex items-center justify-center py-4 relative z-20">
+            <div class="wood-panel rounded-3xl p-6 md:p-8 max-w-2xl w-full flex flex-col gap-6 border-2 border-amber-600 text-center">
+                <h2 class="text-2xl md:text-4xl font-rye text-amber-400">HOW TO PLAY</h2>
+                <div class="wanted-poster p-6 rounded-2xl border-2 border-amber-900 text-stone-900 space-y-4">
+                    <h3 class="font-rye text-xl text-amber-950">Use your hand like a pistol</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center pt-2">
+                        <div class="bg-amber-100 p-4 rounded-xl border border-amber-900/40 space-y-2">
+                            <div class="w-16 h-16 bg-amber-800 text-amber-100 rounded-full flex items-center justify-center text-2xl mx-auto font-rye">
+                                AIM
+                            </div>
+                            <span class="font-bold block text-sm">AIM AT TARGET</span>
+                            <p class="text-xs text-stone-800">Point your extended index finger to position the crosshair over option A, B, C or D.</p>
+                        </div>
+                        <div class="bg-amber-100 p-4 rounded-xl border border-amber-900/40 space-y-2">
+                            <div class="w-16 h-16 bg-rose-800 text-amber-100 rounded-full flex items-center justify-center text-2xl mx-auto font-rye">
+                                SHOOT
+                            </div>
+                            <span class="font-bold block text-sm">PULL THUMB DOWN</span>
+                            <p class="text-xs text-stone-800">Lower your thumb quickly while keeping index finger pointing to fire!</p>
+                        </div>
+                    </div>
+                </div>
+                <button id="btnBackToMainFromTutorial" class="py-3 px-8 rounded-2xl bg-amber-800 hover:bg-amber-700 text-amber-100 font-rye text-xs tracking-wider transition mx-auto border border-amber-500">
+                    <i class="fa-solid fa-arrow-left mr-2"></i> BACK TO MAIN MENU
+                </button>
+            </div>
+        </main>
+
+        <main id="calibrationScreen" class="hidden flex-1 flex items-center justify-center py-4 relative z-20">
+            <div class="wood-panel rounded-3xl p-6 md:p-8 max-w-3xl w-full flex flex-col gap-5 border-2 border-amber-600">
+                <div class="text-center">
+                    <h2 class="text-2xl md:text-3xl font-rye text-amber-400">HAND GESTURE CALIBRATION</h2>
+                    <p class="text-xs text-amber-200/80">Position your hand in camera view and test pistol aim and trigger movement.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                    <div class="bg-black rounded-2xl border-2 border-amber-700 overflow-hidden relative aspect-video flex items-center justify-center">
+                        <canvas id="calibrationCanvas" class="w-full h-full object-cover transform -scale-x-100"></canvas>
+                        <span id="calibStatusBadge" class="absolute top-2 left-2 px-2.5 py-1 bg-amber-950/90 border border-amber-500 text-[10px] font-mono text-amber-300 rounded-lg">
+                            INITIALIZING...
+                        </span>
+                    </div>
+
+                    <div class="bg-stone-950 p-4 rounded-2xl border border-amber-900 space-y-3 font-mono text-xs">
+                        <div id="checkHand" class="flex items-center justify-between p-2 rounded-lg bg-stone-900 text-stone-500 border border-stone-800">
+                            <span>1. Hand detected</span>
+                            <i class="fa-solid fa-circle-xmark text-rose-500"></i>
+                        </div>
+                        <div id="checkPistol" class="flex items-center justify-between p-2 rounded-lg bg-stone-900 text-stone-500 border border-stone-800">
+                            <span>2. Pistol gesture recognised</span>
+                            <i class="fa-solid fa-circle-xmark text-rose-500"></i>
+                        </div>
+                        <div id="checkAim" class="flex items-center justify-between p-2 rounded-lg bg-stone-900 text-stone-500 border border-stone-800">
+                            <span>3. Aiming works</span>
+                            <i class="fa-solid fa-circle-xmark text-rose-500"></i>
+                        </div>
+                        <div id="checkShoot" class="flex items-center justify-between p-2 rounded-lg bg-stone-900 text-stone-500 border border-stone-800">
+                            <span>4. Shooting works</span>
+                            <i class="fa-solid fa-circle-xmark text-rose-500"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center pt-2">
+                    <button id="btnBackFromCalib" class="py-2.5 px-5 bg-stone-800 hover:bg-stone-700 rounded-xl text-amber-200 text-xs font-rye border border-amber-800">
+                        CANCEL
+                    </button>
+                    <button id="btnCalibComplete" class="py-2.5 px-6 bg-emerald-700 hover:bg-emerald-600 text-amber-100 rounded-xl text-xs font-rye border border-emerald-400">
+                        PROCEED TO LEVELS <i class="fa-solid fa-arrow-right ml-1"></i>
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <main id="settingsScreen" class="hidden flex-1 flex items-center justify-center py-4 relative z-20">
+            <div class="wood-panel rounded-3xl p-6 max-w-xl w-full flex flex-col gap-4 border-2 border-amber-600">
+                <h2 class="text-2xl font-rye text-amber-400 text-center">GAME SETTINGS</h2>
+                
+                <div class="space-y-3 bg-stone-950 p-4 rounded-2xl border border-amber-900 text-xs">
+                    <div>
+                        <label class="block text-amber-400 font-bold uppercase mb-1">Course Code</label>
+                        <select id="courseSelect" class="w-full bg-stone-900 border border-amber-800 rounded-xl p-2 text-amber-100">
+                            <option value="DAT20103">DAT20103 - Computer Organization & Architecture</option>
+                            <option value="DAT10203">DAT10203 - Object Oriented Programming</option>
+                            <option value="DAT30403">DAT30403 - Web Application Development</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button id="btnSaveSettings" class="py-3 px-6 bg-amber-700 hover:bg-amber-600 text-amber-100 font-rye rounded-xl text-xs border border-amber-400 text-center mx-auto">
+                    SAVE & RETURN
+                </button>
+            </div>
+        </main>
+
+        <main id="levelSelectScreen" class="hidden flex-1 flex items-center justify-center py-4 relative z-20">
+            <div class="wood-panel rounded-3xl p-6 md:p-8 max-w-5xl w-full flex flex-col gap-6 border-2 border-amber-600 text-center">
+                <div>
+                    <span class="px-3 py-1 bg-amber-900/80 border border-amber-500/60 rounded-full text-xs text-amber-300 font-bold uppercase">
+                        SELECT MISSION DUEL
+                    </span>
+                    <h2 class="text-3xl md:text-4xl font-rye text-amber-400 mt-1">CAMPAIGN LEVELS</h2>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 font-rye">
+                    <div id="cardLevel1" class="wanted-poster p-5 rounded-2xl border-4 border-amber-800 flex flex-col justify-between hover:scale-105 transition cursor-pointer group">
+                        <div class="space-y-2">
+                            <div class="w-10 h-10 bg-amber-800 text-amber-300 rounded-full flex items-center justify-center mx-auto text-lg font-bold border-2 border-amber-400">
+                                1
+                            </div>
+                            <h3 class="text-xl text-amber-950">LEVEL 1<br><span class="text-xs text-amber-800">TRAINING CAMP</span></h3>
+                            <div class="px-3 py-1 bg-amber-900 text-amber-100 text-[10px] rounded-full inline-block">10 QUESTIONS</div>
+                        </div>
+                        <ul class="text-[11px] font-sans text-stone-800 text-left space-y-1.5 my-4 bg-amber-100/80 p-3 rounded-xl border border-amber-900/20">
+                            <li><i class="fa-solid fa-check text-emerald-700 mr-1"></i> Basic knowledge</li>
+                            <li><i class="fa-solid fa-check text-emerald-700 mr-1"></i> Slower pace (25s timer)</li>
+                            <li><i class="fa-solid fa-check text-emerald-700 mr-1"></i> Stationary targets</li>
+                        </ul>
+                        <button class="w-full py-2 bg-amber-900 group-hover:bg-amber-800 text-amber-100 text-xs rounded-xl border border-amber-950">
+                            PLAY LEVEL 1
+                        </button>
+                    </div>
+
+                    <div id="cardLevel2" class="wanted-poster p-5 rounded-2xl border-4 border-amber-800 flex flex-col justify-between hover:scale-105 transition cursor-pointer group">
+                        <div class="space-y-2">
+                            <div class="w-10 h-10 bg-amber-800 text-amber-300 rounded-full flex items-center justify-center mx-auto text-lg font-bold border-2 border-amber-400">
+                                2
+                            </div>
+                            <h3 class="text-xl text-amber-950">LEVEL 2<br><span class="text-xs text-amber-800">DESERT CHALLENGE</span></h3>
+                            <div class="px-3 py-1 bg-amber-900 text-amber-100 text-[10px] rounded-full inline-block">10 QUESTIONS</div>
+                        </div>
+                        <ul class="text-[11px] font-sans text-stone-800 text-left space-y-1.5 my-4 bg-amber-100/80 p-3 rounded-xl border border-amber-900/20">
+                            <li><i class="fa-solid fa-check text-emerald-700 mr-1"></i> Intermediate questions</li>
+                            <li><i class="fa-solid fa-check text-emerald-700 mr-1"></i> Medium pace (20s timer)</li>
+                            <li><i class="fa-solid fa-check text-emerald-700 mr-1"></i> Moving targets (Swaying)</li>
+                        </ul>
+                        <button class="w-full py-2 bg-amber-900 group-hover:bg-amber-800 text-amber-100 text-xs rounded-xl border border-amber-950">
+                            PLAY LEVEL 2
+                        </button>
+                    </div>
+
+                    <div id="cardLevel3" class="wanted-poster p-5 rounded-2xl border-4 border-amber-800 flex flex-col justify-between hover:scale-105 transition cursor-pointer group">
+                        <div class="space-y-2">
+                            <div class="w-10 h-10 bg-amber-800 text-amber-300 rounded-full flex items-center justify-center mx-auto text-lg font-bold border-2 border-amber-400">
+                                3
+                            </div>
+                            <h3 class="text-xl text-amber-950">LEVEL 3<br><span class="text-xs text-amber-800">SHOWDOWN</span></h3>
+                            <div class="px-3 py-1 bg-amber-900 text-amber-100 text-[10px] rounded-full inline-block">10 QUESTIONS</div>
+                        </div>
+                        <ul class="text-[11px] font-sans text-stone-800 text-left space-y-1.5 my-4 bg-amber-100/80 p-3 rounded-xl border border-amber-900/20">
+                            <li><i class="fa-solid fa-check text-emerald-700 mr-1"></i> Advanced level questions</li>
+                            <li><i class="fa-solid fa-check text-emerald-700 mr-1"></i> Fast pace (15s timer)</li>
+                            <li><i class="fa-solid fa-check text-emerald-700 mr-1"></i> Dynamic moving targets</li>
+                        </ul>
+                        <button class="w-full py-2 bg-amber-900 group-hover:bg-amber-800 text-amber-100 text-xs rounded-xl border border-amber-950">
+                            PLAY LEVEL 3
+                        </button>
+                    </div>
+                </div>
+
+                <button id="btnBackToMainFromLevel" class="py-2.5 px-6 rounded-2xl bg-stone-800 text-amber-200 text-xs font-rye border border-amber-800 mx-auto">
+                    BACK TO MENU
+                </button>
+            </div>
+        </main>
+
+        <main id="gameplayScreen" class="hidden flex-1 flex flex-col justify-between py-2 relative z-20 gap-3">
+            <div class="wood-panel rounded-2xl p-5 border-2 border-amber-700 relative overflow-hidden">
+                <div class="flex justify-between items-center mb-1.5">
+                    <span id="questionCategoryBadge" class="text-xs font-rye text-amber-400 uppercase tracking-widest bg-stone-950/80 px-3 py-1 rounded-lg border border-amber-700">
+                        LEVEL 1 • QUESTION 1/10
+                    </span>
+                    <span id="targetStatusText" class="text-xs font-mono text-amber-300 animate-pulse">
+                        AIM WITH INDEX FINGER & PULL THUMB DOWN TO SHOOT!
+                    </span>
+                </div>
+                <h3 id="questionText" class="text-base md:text-xl font-bold text-amber-100 tracking-wide leading-relaxed min-h-[50px] flex items-center">
+                    Loading question...
+                </h3>
+            </div>
+
+            <div id="targetsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+                <div data-option="A" class="target-card rounded-2xl p-4 border-2 border-amber-700 flex items-center gap-4 relative cursor-pointer group">
+                    <div class="w-12 h-12 rounded-full bg-amber-900 border-2 border-amber-400 flex items-center justify-center font-rye text-2xl text-amber-300 shadow-md">
+                        A
+                    </div>
+                    <div id="optionAText" class="text-sm md:text-base font-semibold text-amber-100 flex-1 leading-snug">
+                        Option A
+                    </div>
+                </div>
+
+                <div data-option="B" class="target-card rounded-2xl p-4 border-2 border-amber-700 flex items-center gap-4 relative cursor-pointer group">
+                    <div class="w-12 h-12 rounded-full bg-amber-900 border-2 border-amber-400 flex items-center justify-center font-rye text-2xl text-amber-300 shadow-md">
+                        B
+                    </div>
+                    <div id="optionBText" class="text-sm md:text-base font-semibold text-amber-100 flex-1 leading-snug">
+                        Option B
+                    </div>
+                </div>
+
+                <div data-option="C" class="target-card rounded-2xl p-4 border-2 border-amber-700 flex items-center gap-4 relative cursor-pointer group">
+                    <div class="w-12 h-12 rounded-full bg-amber-900 border-2 border-amber-400 flex items-center justify-center font-rye text-2xl text-amber-300 shadow-md">
+                        C
+                    </div>
+                    <div id="optionCText" class="text-sm md:text-base font-semibold text-amber-100 flex-1 leading-snug">
+                        Option C
+                    </div>
+                </div>
+
+                <div data-option="D" class="target-card rounded-2xl p-4 border-2 border-amber-700 flex items-center gap-4 relative cursor-pointer group">
+                    <div class="w-12 h-12 rounded-full bg-amber-900 border-2 border-amber-400 flex items-center justify-center font-rye text-2xl text-amber-300 shadow-md">
+                        D
+                    </div>
+                    <div id="optionDText" class="text-sm md:text-base font-semibold text-amber-100 flex-1 leading-snug">
+                        Option D
+                    </div>
+                </div>
+            </div>
+
+            <div id="feedbackBanner" class="hidden wood-panel rounded-2xl p-4 border-2 flex items-center justify-between transition-all duration-200">
+                <div class="flex items-center gap-4">
+                    <div id="feedbackIcon" class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-bold">
+                        <i class="fa-solid fa-bullseye"></i>
+                    </div>
+                    <div>
+                        <h4 id="feedbackTitle" class="font-rye text-lg uppercase text-amber-400">
+                            CORRECT!
+                        </h4>
+                        <p id="feedbackExplanation" class="text-xs text-amber-200/90 max-w-2xl">
+                            Explanation text...
+                        </p>
+                    </div>
+                </div>
+                <button id="btnNextQuestion" class="py-2.5 px-5 bg-emerald-600 hover:bg-emerald-500 text-amber-100 font-rye text-xs rounded-xl border border-emerald-300 transition flex items-center gap-2">
+                    Next Question <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </main>
+
+        <main id="levelCompleteScreen" class="hidden flex-1 flex items-center justify-center py-4 relative z-20">
+            <div class="wanted-poster rounded-3xl p-8 max-w-md w-full flex flex-col gap-5 text-center relative border-8 border-amber-900">
+                <h2 id="lvlCompleteTitle" class="text-3xl font-rye text-amber-950">
+                    LEVEL 1 COMPLETE!
+                </h2>
+
+                <div id="starRatingBox" class="flex justify-center gap-2 text-4xl text-amber-500 my-1">
+                    <i class="fa-solid fa-star"></i>
+                    <i class="fa-solid fa-star"></i>
+                    <i class="fa-solid fa-star text-stone-400"></i>
+                </div>
+
+                <div class="bg-amber-100/90 p-4 rounded-xl border border-amber-900/30 text-stone-900 font-rye space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span>Questions Attempted:</span>
+                        <span id="lvlStatsAttempted">10/10</span>
+                    </div>
+                    <div class="flex justify-between text-emerald-800">
+                        <span>Correct Answers:</span>
+                        <span id="lvlStatsCorrect">8</span>
+                    </div>
+                    <div class="flex justify-between text-rose-800">
+                        <span>Incorrect Answers:</span>
+                        <span id="lvlStatsIncorrect">2</span>
+                    </div>
+                    <div class="flex justify-between text-amber-900 text-base pt-1 border-t border-amber-900/20">
+                        <span>Score Earned:</span>
+                        <span id="lvlStatsScore">800</span>
+                    </div>
+                </div>
+
+                <button id="btnProceedNextLevel" class="py-3.5 rounded-xl bg-amber-900 hover:bg-amber-800 text-amber-100 font-rye text-xs tracking-wider transition border border-amber-950">
+                    NEXT LEVEL <i class="fa-solid fa-arrow-right ml-1"></i>
+                </button>
+            </div>
+        </main>
+
+        <main id="resultsScreen" class="hidden flex-1 flex items-center justify-center py-4 relative z-20">
+            <div class="wanted-poster rounded-3xl p-8 max-w-xl w-full flex flex-col gap-5 text-center relative border-8 border-amber-900">
+                <div class="space-y-1">
+                    <i class="fa-solid fa-trophy text-amber-600 text-4xl animate-bounce"></i>
+                    <h2 class="text-3xl font-rye text-amber-950">GAME RESULT</h2>
+                </div>
+
+                <div class="bg-amber-100 p-5 rounded-2xl border-2 border-amber-900/40 text-amber-950 font-rye space-y-2 text-sm">
+                    <div class="flex justify-between border-b border-amber-900/20 pb-1">
+                        <span>Total Questions:</span>
+                        <span id="finalTotalQuestions">30</span>
+                    </div>
+                    <div class="flex justify-between text-emerald-800 border-b border-amber-900/20 pb-1">
+                        <span>Correct Answers:</span>
+                        <span id="finalCorrectAnswers">24</span>
+                    </div>
+                    <div class="flex justify-between text-rose-800 border-b border-amber-900/20 pb-1">
+                        <span>Incorrect Answers:</span>
+                        <span id="finalIncorrectAnswers">6</span>
+                    </div>
+                    <div class="flex justify-between border-b border-amber-900/20 pb-1">
+                        <span>Total Score:</span>
+                        <span id="finalTotalScore" class="text-amber-900 font-bold">$2400</span>
+                    </div>
+                    <div class="flex justify-between pt-1 text-base">
+                        <span>Accuracy:</span>
+                        <span id="finalAccuracy" class="text-emerald-900 font-bold">80%</span>
+                    </div>
+                </div>
+
+                <div class="text-2xl font-rye text-rose-800 border-2 border-rose-800/40 bg-rose-100 p-2 rounded-xl rotate-1">
+                    WELL DONE!
+                </div>
+
+                <div class="flex gap-4 pt-2 font-rye">
+                    <button id="btnPlayAgain" class="flex-1 py-3.5 rounded-xl bg-amber-900 hover:bg-amber-800 text-amber-100 text-xs tracking-wider transition border border-amber-950">
+                        <i class="fa-solid fa-rotate-right mr-1"></i> PLAY AGAIN
+                    </button>
+                    <button id="btnReturnMainMenu" class="flex-1 py-3.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-100 text-xs tracking-wider transition">
+                        <i class="fa-solid fa-house mr-1"></i> MAIN MENU
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Picture-In-Picture Webcam View -->
+        <div id="webcamPipContainer" class="fixed bottom-4 right-4 z-40 w-44 rounded-2xl wood-panel border-2 border-amber-700 overflow-hidden shadow-2xl transition-all duration-300">
+            <div class="bg-stone-900 px-3 py-1 flex justify-between items-center border-b border-amber-800 text-[10px] font-mono text-amber-300">
+                <span class="flex items-center gap-1">
+                    <span id="webcamLiveDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span>CAM PIP</span>
+                </span>
+            </div>
+            <div class="relative aspect-video bg-black flex items-center justify-center">
+                <canvas id="pipCanvas" class="w-full h-full object-cover transform -scale-x-100"></canvas>
+            </div>
+        </div>
+
+        <footer class="text-center text-[10px] md:text-xs text-amber-200/60 py-1 relative z-20">
+            <span>Jabatan Teknologi Maklumat • Pusat Pengajian Diploma UTHM</span>
+        </footer>
+    </div>
+
+    <script>
+        const CONFIG = {
+            THUMB_TRIGGER_THRESHOLD: 0.042,
+            THUMB_RETURN_THRESHOLD: 0.02,
+            REARM_COOLDOWN_MS: 280,
+            AIM_SMOOTHING: 0.35,
+            POINTS_PER_QUESTION: 100
+        };
+
+        const state = {
+            currentView: 'start',
+            inputMode: 'webcam',
+            soundMuted: false,
+
+            gestureState: 'READY_TO_AIM',
+            rawCrosshair: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+            smoothCrosshair: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+            lastShotTime: 0,
+            currentTargetOption: null,
+
+            calibFlags: { hand: false, pistol: false, aim: false, shoot: false },
+
+            currentLevel: 1,
+            levelQuestionsCount: 10,
+            questions: [],
+            currentQuestionIndex: 0,
+            score: 0,
+            lives: 3,
+            timer: 20,
+            timerInterval: null,
+            isAnswerLocked: false,
+
+            levelStats: { attempted: 0, correct: 0, incorrect: 0 },
+            totalStats: { attempted: 0, correct: 0, incorrect: 0, score: 0 }
+        };
+
+        const LEVEL_QUESTIONS = {
+            1: [
+                { QuestionID: "L1_1", Question: "Which SQL keyword is used to retrieve data from a database table?", OptionA: "INSERT", OptionB: "SELECT", OptionC: "UPDATE", OptionD: "DELETE", CorrectAnswer: "B", Explanation: "The SELECT command is used to query and fetch records from a database table." },
+                { QuestionID: "L1_2", Question: "What does CPU stand for in computer architecture?", OptionA: "Central Processing Unit", OptionB: "Central Power Unit", OptionC: "Control Processing Utility", OptionD: "Computer Process Unit", CorrectAnswer: "A", Explanation: "CPU stands for Central Processing Unit, the primary component that executes instructions." },
+                { QuestionID: "L1_3", Question: "Which memory type is non-volatile and retains data when power is turned off?", OptionA: "RAM", OptionB: "Cache", OptionC: "ROM", OptionD: "Virtual Memory", CorrectAnswer: "C", Explanation: "ROM (Read-Only Memory) is non-volatile permanent computer memory." },
+                { QuestionID: "L1_4", Question: "In HTML, which tag is used to create a hyperlink?", OptionA: "<link>", OptionB: "<a>", OptionC: "<href>", OptionD: "<url>", CorrectAnswer: "B", Explanation: "The <a> (anchor) tag specifies hyperlinked web addresses." },
+                { QuestionID: "L1_5", Question: "Which binary value represents the decimal number 5?", OptionA: "0100", OptionB: "0101", OptionC: "0110", OptionD: "1001", CorrectAnswer: "B", Explanation: "In binary: 4 + 0 + 1 = 0101." },
+                { QuestionID: "L1_6", Question: "Which component stores data temporarily during program execution?", OptionA: "Hard Drive", OptionB: "RAM", OptionC: "Optical Drive", OptionD: "BIOS", CorrectAnswer: "B", Explanation: "RAM holds active volatile data during processing." },
+                { QuestionID: "L1_7", Question: "In OOP, what is a template used to create objects called?", OptionA: "Method", OptionB: "Class", OptionC: "Variable", OptionD: "Attribute", CorrectAnswer: "B", Explanation: "A Class serves as a blueprint or template for creating objects." },
+                { QuestionID: "L1_8", Question: "What protocol is used for secure web browsing communication?", OptionA: "HTTP", OptionB: "HTTPS", OptionC: "FTP", OptionD: "SMTP", CorrectAnswer: "B", Explanation: "HTTPS uses TLS/SSL encryption for secure web traffic." },
+                { QuestionID: "L1_9", Question: "Which data structure operates on First-In-First-Out (FIFO)?", OptionA: "Stack", OptionB: "Queue", OptionC: "Tree", OptionD: "Graph", CorrectAnswer: "B", Explanation: "A Queue processes elements in First-In-First-Out order." },
+                { QuestionID: "L1_10", Question: "What symbol is used for single-line comments in JavaScript?", OptionA: "<!--", OptionB: "//", OptionC: "/*", OptionD: "#", CorrectAnswer: "B", Explanation: "Double slashes // comment out a single line in JavaScript." }
+            ],
+            2: [
+                { QuestionID: "L2_1", Question: "Which SQL clause filters records returned by a SELECT statement?", OptionA: "GROUP BY", OptionB: "WHERE", OptionC: "ORDER BY", OptionD: "HAVING", CorrectAnswer: "B", Explanation: "The WHERE clause filters rows based on specified conditions." },
+                { QuestionID: "L2_2", Question: "Which sorting algorithm has an average time complexity of O(n log n)?", OptionA: "Bubble Sort", OptionB: "Quick Sort", OptionC: "Selection Sort", OptionD: "Insertion Sort", CorrectAnswer: "B", Explanation: "Quick Sort averages O(n log n) efficiency." },
+                { QuestionID: "L2_3", Question: "In CSS, which property alters text colour?", OptionA: "text-style", OptionB: "color", OptionC: "font-color", OptionD: "background-color", CorrectAnswer: "B", Explanation: "The 'color' CSS property sets foreground text colour." },
+                { QuestionID: "L2_4", Question: "Which layer of the OSI model manages end-to-end communication?", OptionA: "Network", OptionB: "Transport", OptionC: "Session", OptionD: "Data Link", CorrectAnswer: "B", Explanation: "The Transport layer (Layer 4) provides end-to-end communication services." },
+                { QuestionID: "L2_5", Question: "In Java, which keyword prevents class inheritance?", OptionA: "static", OptionB: "final", OptionC: "abstract", OptionD: "private", CorrectAnswer: "B", Explanation: "The final keyword prevents a class from being subclassed." },
+                { QuestionID: "L2_6", Question: "Which logic gate outputs 1 only when both inputs are 1?", OptionA: "OR", OptionB: "AND", OptionC: "XOR", OptionD: "NAND", CorrectAnswer: "B", Explanation: "An AND gate requires all inputs to be true." },
+                { QuestionID: "L2_7", Question: "What HTTP response status code indicates 'Not Found'?", OptionA: "200", OptionB: "404", OptionC: "500", OptionD: "302", CorrectAnswer: "B", Explanation: "404 indicates the requested server resource was not found." },
+                { QuestionID: "L2_8", Question: "Which command in Git creates a local repository copy?", OptionA: "git init", OptionB: "git clone", OptionC: "git fetch", OptionD: "git pull", CorrectAnswer: "B", Explanation: "git clone duplicates an existing repository locally." },
+                { QuestionID: "L2_9", Question: "In relational databases, what uniquely identifies a row?", OptionA: "Foreign Key", OptionB: "Primary Key", OptionC: "Index", OptionD: "Candidate Key", CorrectAnswer: "B", Explanation: "A Primary Key uniquely identifies each record in a table." },
+                { QuestionID: "L2_10", Question: "Which JavaScript function converts a JSON string into an object?", OptionA: "JSON.parse()", OptionB: "JSON.stringify()", OptionC: "JSON.object()", OptionD: "JSON.toObject()", CorrectAnswer: "A", Explanation: "JSON.parse() parses a JSON string into a JS object." }
+            ],
+            3: [
+                { QuestionID: "L3_1", Question: "Which design pattern ensures a class has only one instance?", OptionA: "Factory", OptionB: "Singleton", OptionC: "Observer", OptionD: "Strategy", CorrectAnswer: "B", Explanation: "Singleton restricts class instantiation to a single object." },
+                { QuestionID: "L3_2", Question: "Which CPU scheduling algorithm can suffer from starvation?", OptionA: "Round Robin", OptionB: "Priority Scheduling", OptionC: "First Come First Served", OptionD: "FIFO", CorrectAnswer: "B", Explanation: "Low-priority tasks may suffer starvation in Priority Scheduling." },
+                { QuestionID: "L3_3", Question: "What is the worst-case time complexity of searching a Binary Search Tree (BST)?", OptionA: "O(1)", OptionB: "O(n)", OptionC: "O(log n)", OptionD: "O(n^2)", CorrectAnswer: "B", Explanation: "An unbalanced degenerate BST degenerates to O(n) search time." },
+                { QuestionID: "L3_4", Question: "Which normalization form eliminates transitive dependencies?", OptionA: "1NF", OptionB: "3NF", OptionC: "2NF", OptionD: "BCNF", CorrectAnswer: "B", Explanation: "3NF eliminates non-key transitive functional dependencies." },
+                { QuestionID: "L3_5", Question: "In computer networks, what is the default port for HTTPS?", OptionA: "80", OptionB: "443", OptionC: "8080", OptionD: "21", CorrectAnswer: "B", Explanation: "Port 443 is the standard port for encrypted HTTPS traffic." },
+                { QuestionID: "L3_6", Question: "Which assembly register holds the instruction address currently executed?", OptionA: "Accumulator", OptionB: "Program Counter", OptionC: "Stack Pointer", OptionD: "Data Register", CorrectAnswer: "B", Explanation: "The Program Counter (PC) holds the address of the next instruction." },
+                { QuestionID: "L3_7", Question: "In OS, what condition occurs when processes wait indefinitely for resources?", OptionA: "Paging", OptionB: "Deadlock", OptionC: "Thrashing", OptionD: "Segmentation", CorrectAnswer: "B", Explanation: "Deadlock occurs when processes wait endlessly in circular dependency." },
+                { QuestionID: "L3_8", Question: "Which cryptography technique uses different keys for encryption and decryption?", OptionA: "Symmetric", OptionB: "Asymmetric", OptionC: "Hashing", OptionD: "Steganography", CorrectAnswer: "B", Explanation: "Asymmetric encryption uses public and private key pairs." },
+                { QuestionID: "L3_9", Question: "Which HTTP method is idempotent and used to replace resources?", OptionA: "POST", OptionB: "PUT", OptionC: "DELETE", OptionD: "GET", CorrectAnswer: "B", Explanation: "PUT replaces target resource representations idempotently." },
+                { QuestionID: "L3_10", Question: "In JavaScript, what mechanism hoists variable and function declarations?", OptionA: "Closure", OptionB: "Hoisting", OptionC: "Scope Chain", OptionD: "Event Loop", CorrectAnswer: "B", Explanation: "Hoisting moves declarations to the top of execution context." }
+            ]
+        };
+
+        class SoundEngine {
+            constructor() { this.ctx = null; }
+            init() { 
+                if (!this.ctx) {
+                    try {
+                        this.ctx = new (window.AudioContext || window.webkitAudioContext)(); 
+                    } catch(e) { console.warn("AudioContext unsupported"); }
+                }
+            }
+            
+            playShoot() {
+                if (state.soundMuted || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const bufferSize = this.ctx.sampleRate * 0.12;
+                    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                    
+                    const noise = this.ctx.createBufferSource();
+                    noise.buffer = buffer;
+                    const filter = this.ctx.createBiquadFilter();
+                    filter.type = 'bandpass'; filter.frequency.value = 1200;
+                    const gain = this.ctx.createGain();
+                    gain.gain.setValueAtTime(1.0, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+                    
+                    noise.connect(filter); filter.connect(gain); gain.connect(this.ctx.destination);
+                    noise.start(now);
+                } catch(e) {}
+            }
+
+            playCorrect() {
+                if (state.soundMuted || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+                        const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+                        gain.gain.setValueAtTime(0.25, now + idx * 0.06);
+                        gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.06 + 0.2);
+                        osc.connect(gain); gain.connect(this.ctx.destination);
+                        osc.start(now + idx * 0.06); osc.stop(now + idx * 0.06 + 0.2);
+                    });
+                } catch(e) {}
+            }
+
+            playIncorrect() {
+                if (state.soundMuted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(160, this.ctx.currentTime);
+                    osc.frequency.setValueAtTime(95, this.ctx.currentTime + 0.15);
+                    gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+                    osc.connect(gain); gain.connect(this.ctx.destination);
+                    osc.start(); osc.stop(this.ctx.currentTime + 0.3);
+                } catch(e) {}
+            }
+        }
+        const soundFx = new SoundEngine();
+
+        const fxCanvas = document.getElementById('fxCanvas');
+        const fxCtx = fxCanvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            fxCanvas.width = window.innerWidth;
+            fxCanvas.height = window.innerHeight;
+            const pipCanvas = document.getElementById('pipCanvas');
+            if (pipCanvas) { pipCanvas.width = 320; pipCanvas.height = 240; }
+            const calibCanvas = document.getElementById('calibrationCanvas');
+            if (calibCanvas) { calibCanvas.width = 320; calibCanvas.height = 240; }
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function createShotEffect(targetX, targetY) {
+            fxCtx.save();
+            fxCtx.strokeStyle = '#f59e0b';
+            fxCtx.lineWidth = 6;
+            fxCtx.shadowColor = '#fbbf24';
+            fxCtx.shadowBlur = 15;
+            fxCtx.beginPath();
+            fxCtx.moveTo(window.innerWidth / 2, window.innerHeight);
+            fxCtx.lineTo(targetX, targetY);
+            fxCtx.stroke();
+            fxCtx.restore();
+
+            for (let i = 0; i < 20; i++) {
+                particles.push({
+                    x: targetX, y: targetY,
+                    vx: (Math.random() - 0.5) * 12,
+                    vy: (Math.random() - 0.5) * 12,
+                    radius: Math.random() * 4 + 2,
+                    color: Math.random() > 0.4 ? '#fbbf24' : '#d97706',
+                    alpha: 1, life: 0.04 + Math.random() * 0.03
+                });
+            }
+        }
+
+        function animateFx() {
+            fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx; p.y += p.vy; p.alpha -= p.life;
+                if (p.alpha <= 0) { particles.splice(i, 1); continue; }
+                fxCtx.save();
+                fxCtx.globalAlpha = p.alpha;
+                fxCtx.fillStyle = p.color;
+                fxCtx.shadowColor = p.color;
+                fxCtx.shadowBlur = 10;
+                fxCtx.beginPath();
+                fxCtx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                fxCtx.fill();
+                fxCtx.restore();
+            }
+            requestAnimationFrame(animateFx);
+        }
+        animateFx();
+
+        let hands = null, camera = null;
+
+        async function initMediaPipe() {
+            if (state.inputMode === 'mouse') return;
+            try {
+                if (typeof Hands === 'undefined') {
+                    console.warn("MediaPipe Hands library not loaded. Falling back to Mouse Mode.");
+                    switchToMouseMode();
+                    return;
+                }
+
+                if (!hands) {
+                    hands = new Hands({
+                        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+                    });
+                    hands.setOptions({
+                        maxNumHands: 1,
+                        modelComplexity: 1,
+                        minDetectionConfidence: 0.6,
+                        minTrackingConfidence: 0.6
+                    });
+                    hands.onResults(onHandResults);
+                }
+
+                const videoElement = document.getElementById('webcamVideo');
+                if (camera) { try { await camera.stop(); } catch(e) {} }
+
+                if (typeof Camera !== 'undefined') {
+                    camera = new Camera(videoElement, {
+                        onFrame: async () => {
+                            if (state.inputMode === 'webcam' && hands) await hands.send({ image: videoElement });
+                        },
+                        width: 640, height: 480
+                    });
+                    await camera.start();
+                } else {
+                    switchToMouseMode();
+                }
+            } catch (err) {
+                console.warn("Camera access denied or unavailable. Fallback to mouse control:", err);
+                switchToMouseMode();
+            }
+        }
+
+        function switchToMouseMode() {
+            state.inputMode = 'mouse';
+            document.getElementById('modeToggleText').innerText = "MOUSE MODE";
+            document.addEventListener('mousemove', onMouseMoveAim);
+            document.addEventListener('click', onMouseClickShoot);
+            
+            // Auto-complete calibration checklist in mouse mode
+            state.calibFlags = { hand: true, pistol: true, aim: true, shoot: true };
+            updateCalibrationChecklist(true, 0.1);
+        }
+
+        function switchToWebcamMode() {
+            state.inputMode = 'webcam';
+            document.getElementById('modeToggleText').innerText = "WEBCAM";
+            document.removeEventListener('mousemove', onMouseMoveAim);
+            document.removeEventListener('click', onMouseClickShoot);
+            initMediaPipe();
+        }
+
+        function onMouseMoveAim(e) {
+            if (state.inputMode !== 'mouse') return;
+            state.rawCrosshair = { x: e.clientX, y: e.clientY };
+            state.smoothCrosshair = { x: e.clientX, y: e.clientY };
+
+            const crosshair = document.getElementById('crosshair');
+            if (state.currentView === 'gameplay' || state.currentView === 'calibration') {
+                crosshair.classList.remove('hidden');
+                crosshair.style.left = `${e.clientX}px`;
+                crosshair.style.top = `${e.clientY}px`;
+            } else {
+                crosshair.classList.add('hidden');
+            }
+            updateTargetHoverState();
+        }
+
+        function onMouseClickShoot(e) {
+            if (state.inputMode !== 'mouse') return;
+            if (e.target.closest('button, select, input, option, a')) return;
+            triggerShootingEvent();
+        }
+
+        function onHandResults(results) {
+            if (state.inputMode !== 'webcam') return;
+
+            const pipCanvas = document.getElementById('pipCanvas');
+            const pipCtx = pipCanvas.getContext('2d');
+            pipCtx.save();
+            pipCtx.clearRect(0, 0, pipCanvas.width, pipCanvas.height);
+            if (results.image) pipCtx.drawImage(results.image, 0, 0, pipCanvas.width, pipCanvas.height);
+
+            if (state.currentView === 'calibration') {
+                const calibCanvas = document.getElementById('calibrationCanvas');
+                const calibCtx = calibCanvas.getContext('2d');
+                calibCtx.save();
+                calibCtx.clearRect(0, 0, calibCanvas.width, calibCanvas.height);
+                if (results.image) calibCtx.drawImage(results.image, 0, 0, calibCanvas.width, calibCanvas.height);
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    drawSkeleton(calibCtx, results.multiHandLandmarks[0], calibCanvas.width, calibCanvas.height);
+                }
+                calibCtx.restore();
+            }
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                drawSkeleton(pipCtx, landmarks, pipCanvas.width, pipCanvas.height);
+
+                const indexTip = landmarks[8];
+                const thumbTip = landmarks[4];
+                const thumbMcp = landmarks[2];
+                const wrist = landmarks[0];
+
+                const aimX = (1 - indexTip.x) * window.innerWidth;
+                const aimY = indexTip.y * window.innerHeight;
+
+                state.rawCrosshair = { x: aimX, y: aimY };
+                state.smoothCrosshair.x += (state.rawCrosshair.x - state.smoothCrosshair.x) * CONFIG.AIM_SMOOTHING;
+                state.smoothCrosshair.y += (state.rawCrosshair.y - state.smoothCrosshair.y) * CONFIG.AIM_SMOOTHING;
+
+                const crosshair = document.getElementById('crosshair');
+                if (state.currentView === 'gameplay' || state.currentView === 'calibration') {
+                    crosshair.classList.remove('hidden');
+                    crosshair.style.left = `${state.smoothCrosshair.x}px`;
+                    crosshair.style.top = `${state.smoothCrosshair.y}px`;
+                } else {
+                    crosshair.classList.add('hidden');
+                }
+
+                const handHeight = Math.hypot(wrist.x - thumbMcp.x, wrist.y - thumbMcp.y) || 1;
+                const thumbDeltaY = (thumbTip.y - thumbMcp.y) / handHeight;
+
+                processGestureStateMachine(thumbDeltaY);
+                updateTargetHoverState();
+
+                if (state.currentView === 'calibration') updateCalibrationChecklist(true, thumbDeltaY);
+            } else {
+                const crosshair = document.getElementById('crosshair');
+                if (crosshair) crosshair.classList.add('hidden');
+                if (state.currentView === 'calibration') updateCalibrationChecklist(false, 0);
+            }
+            pipCtx.restore();
+        }
+
+        function drawSkeleton(ctx, landmarks, w, h) {
+            ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = '#8d5b28'; ctx.lineWidth = 2;
+            landmarks.forEach(lm => {
+                ctx.beginPath(); ctx.arc(lm.x * w, lm.y * h, 3, 0, Math.PI * 2); ctx.fill();
+            });
+        }
+
+        function processGestureStateMachine(thumbDeltaY) {
+            const now = Date.now();
+            switch (state.gestureState) {
+                case 'READY_TO_AIM':
+                    if (thumbDeltaY > CONFIG.THUMB_TRIGGER_THRESHOLD) {
+                        state.gestureState = 'SHOOTING';
+                        triggerShootingEvent();
+                    }
+                    break;
+                case 'SHOOTING':
+                    state.gestureState = 'REARMING';
+                    state.lastShotTime = now;
+                    break;
+                case 'REARMING':
+                    if (thumbDeltaY < CONFIG.THUMB_RETURN_THRESHOLD && (now - state.lastShotTime > CONFIG.REARM_COOLDOWN_MS)) {
+                        state.gestureState = 'READY_TO_AIM';
+                    }
+                    break;
+            }
+        }
+
+        function updateCalibrationChecklist(handDetected, thumbDeltaY) {
+            const badge = document.getElementById('calibStatusBadge');
+            
+            if (handDetected) {
+                state.calibFlags.hand = true;
+                state.calibFlags.pistol = true;
+                state.calibFlags.aim = true;
+                badge.innerText = state.inputMode === 'mouse' ? "MOUSE MODE ACTIVE" : "HAND DETECTED";
+                badge.className = "absolute top-2 left-2 px-2.5 py-1 bg-emerald-950/90 border border-emerald-500 text-[10px] font-mono text-emerald-300 rounded-lg";
+                
+                if (thumbDeltaY > CONFIG.THUMB_TRIGGER_THRESHOLD || state.inputMode === 'mouse') {
+                    state.calibFlags.shoot = true;
+                }
+            } else {
+                badge.innerText = "NO HAND DETECTED";
+                badge.className = "absolute top-2 left-2 px-2.5 py-1 bg-rose-950/90 border border-rose-500 text-[10px] font-mono text-rose-300 rounded-lg";
+            }
+
+            updateCheckRow('checkHand', state.calibFlags.hand, "1. Hand detected");
+            updateCheckRow('checkPistol', state.calibFlags.pistol, "2. Pistol gesture recognised");
+            updateCheckRow('checkAim', state.calibFlags.aim, "3. Aiming works");
+            updateCheckRow('checkShoot', state.calibFlags.shoot, "4. Shooting works");
+        }
+
+        function updateCheckRow(id, active, text) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (active) {
+                el.className = "flex items-center justify-between p-2 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-700";
+                el.innerHTML = `<span>${text}</span><i class="fa-solid fa-circle-check text-emerald-400"></i>`;
+            } else {
+                el.className = "flex items-center justify-between p-2 rounded-lg bg-stone-900 text-stone-500 border border-stone-800";
+                el.innerHTML = `<span>${text}</span><i class="fa-solid fa-circle-xmark text-rose-500"></i>`;
+            }
+        }
+
+        function updateTargetHoverState() {
+            if (state.currentView !== 'gameplay' || state.isAnswerLocked) return;
+
+            let hoveredOption = null;
+            document.querySelectorAll('.target-card').forEach((card) => {
+                const rect = card.getBoundingClientRect();
+                const x = state.smoothCrosshair.x;
+                const y = state.smoothCrosshair.y;
+
+                if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                    card.classList.add('aim-hover');
+                    hoveredOption = card.getAttribute('data-option');
+                } else {
+                    card.classList.remove('aim-hover');
+                }
+            });
+            state.currentTargetOption = hoveredOption;
+        }
+
+        function triggerShootingEvent() {
+            createShotEffect(state.smoothCrosshair.x, state.smoothCrosshair.y);
+            soundFx.playShoot();
+
+            if (state.currentView === 'gameplay' && state.currentTargetOption && !state.isAnswerLocked) {
+                commitAnswer(state.currentTargetOption);
+            }
+        }
+
+        function startLevel(levelNum) {
+            state.currentLevel = levelNum;
+            state.questions = [...LEVEL_QUESTIONS[levelNum]];
+            state.currentQuestionIndex = 0;
+            state.levelStats = { attempted: 0, correct: 0, incorrect: 0 };
+            state.score = state.totalStats.score;
+            state.lives = 3;
+
+            const grid = document.getElementById('targetsGrid');
+            grid.className = "grid grid-cols-1 md:grid-cols-2 gap-4 flex-1";
+            if (levelNum === 2) grid.classList.add('level-2-motion');
+            if (levelNum === 3) grid.classList.add('level-3-motion');
+
+            document.getElementById('hudLevelBadge').innerText = `LEVEL ${levelNum}`;
+            updateHud();
+            switchView('gameplay');
+            loadCurrentQuestion();
+        }
+
+        function loadCurrentQuestion() {
+            if (state.currentQuestionIndex >= state.questions.length || state.lives <= 0) {
+                finishLevel();
+                return;
+            }
+
+            state.isAnswerLocked = false;
+            document.getElementById('feedbackBanner').classList.add('hidden');
+
+            const q = state.questions[state.currentQuestionIndex];
+            document.getElementById('questionCategoryBadge').innerText = `LEVEL ${state.currentLevel} • QUESTION ${state.currentQuestionIndex + 1}/10`;
+            document.getElementById('questionText').innerText = q.Question;
+
+            document.querySelectorAll('.target-card').forEach(card => {
+                card.className = "target-card rounded-2xl p-4 border-2 border-amber-700 flex items-center gap-4 relative cursor-pointer group";
+            });
+
+            document.getElementById('optionAText').innerText = q.OptionA;
+            document.getElementById('optionBText').innerText = q.OptionB;
+            document.getElementById('optionCText').innerText = q.OptionC;
+            document.getElementById('optionDText').innerText = q.OptionD;
+
+            startTimer();
+        }
+
+        function startTimer() {
+            clearInterval(state.timerInterval);
+            state.timer = state.currentLevel === 1 ? 25 : (state.currentLevel === 2 ? 20 : 15);
+            document.getElementById('timerText').innerText = `${state.timer}s`;
+
+            state.timerInterval = setInterval(() => {
+                state.timer--;
+                document.getElementById('timerText').innerText = `${state.timer}s`;
+
+                if (state.timer <= 0) {
+                    clearInterval(state.timerInterval);
+                    handleTimeOut();
+                }
+            }, 1000);
+        }
+
+        function handleTimeOut() {
+            state.isAnswerLocked = true;
+            state.lives--;
+            state.levelStats.incorrect++;
+            state.levelStats.attempted++;
+            updateHud();
+            soundFx.playIncorrect();
+
+            showFeedback(false, "TIME EXPIRED!", "Sheriff Star lost. Stay focused and shoot faster!");
+        }
+
+        function commitAnswer(selectedOption) {
+            state.isAnswerLocked = true;
+            clearInterval(state.timerInterval);
+            state.levelStats.attempted++;
+
+            const currentQ = state.questions[state.currentQuestionIndex];
+            const selectedCard = document.querySelector(`.target-card[data-option="${selectedOption}"]`);
+
+            let isCorrect = (selectedOption === currentQ.CorrectAnswer);
+            let explanation = currentQ.Explanation || "";
+
+            if (selectedCard) selectedCard.classList.add(isCorrect ? 'target-correct' : 'target-incorrect');
+
+            if (isCorrect) {
+                state.score += CONFIG.POINTS_PER_QUESTION;
+                state.levelStats.correct++;
+                soundFx.playCorrect();
+                showFeedback(true, `CORRECT! +100 Points`, explanation);
+            } else {
+                state.lives--;
+                state.levelStats.incorrect++;
+                soundFx.playIncorrect();
+
+                const correctTarget = document.querySelector(`.target-card[data-option="${currentQ.CorrectAnswer}"]`);
+                if (correctTarget) correctTarget.classList.add('target-correct');
+                showFeedback(false, `INCORRECT! (Answer: ${currentQ.CorrectAnswer})`, explanation);
+            }
+
+            updateHud();
+        }
+
+        function showFeedback(isCorrect, title, explanation) {
+            const banner = document.getElementById('feedbackBanner');
+            const icon = document.getElementById('feedbackIcon');
+            const titleEl = document.getElementById('feedbackTitle');
+            const expEl = document.getElementById('feedbackExplanation');
+
+            banner.classList.remove('hidden');
+            if (isCorrect) {
+                banner.className = "wood-panel rounded-2xl p-4 border-2 border-emerald-500 flex items-center justify-between";
+                icon.className = "w-12 h-12 rounded-xl bg-emerald-600 text-amber-100 flex items-center justify-center text-2xl font-bold";
+                icon.innerHTML = '<i class="fa-solid fa-bullseye"></i>';
+                titleEl.className = "font-rye text-lg uppercase text-emerald-400";
+            } else {
+                banner.className = "wood-panel rounded-2xl p-4 border-2 border-rose-600 flex items-center justify-between";
+                icon.className = "w-12 h-12 rounded-xl bg-rose-700 text-amber-100 flex items-center justify-center text-2xl font-bold";
+                icon.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                titleEl.className = "font-rye text-lg uppercase text-rose-400";
+            }
+
+            titleEl.innerText = title;
+            expEl.innerText = explanation || "";
+        }
+
+        function updateHud() {
+            document.getElementById('scoreText').innerText = `$${state.score}`;
+            const heartsContainer = document.getElementById('livesContainer');
+            heartsContainer.innerHTML = '';
+            for (let i = 0; i < 3; i++) {
+                const star = document.createElement('i');
+                star.className = i < state.lives ? 'fa-solid fa-star text-amber-400' : 'fa-regular fa-star text-amber-900';
+                heartsContainer.appendChild(star);
+            }
+        }
+
+        function finishLevel() {
+            clearInterval(state.timerInterval);
+
+            state.totalStats.attempted += state.levelStats.attempted;
+            state.totalStats.correct += state.levelStats.correct;
+            state.totalStats.incorrect += state.levelStats.incorrect;
+            state.totalStats.score = state.score;
+
+            if (state.currentLevel < 3 && state.lives > 0) {
+                document.getElementById('lvlCompleteTitle').innerText = `LEVEL ${state.currentLevel} COMPLETE!`;
+                document.getElementById('lvlStatsAttempted').innerText = `${state.levelStats.attempted}/10`;
+                document.getElementById('lvlStatsCorrect').innerText = state.levelStats.correct;
+                document.getElementById('lvlStatsIncorrect').innerText = state.levelStats.incorrect;
+                document.getElementById('lvlStatsScore').innerText = `$${state.score}`;
+
+                const starsBox = document.getElementById('starRatingBox');
+                starsBox.innerHTML = '';
+                const starsCount = state.levelStats.correct >= 9 ? 3 : (state.levelStats.correct >= 6 ? 2 : 1);
+                for (let i = 0; i < 3; i++) {
+                    starsBox.innerHTML += i < starsCount ? '<i class="fa-solid fa-star text-amber-400"></i>' : '<i class="fa-solid fa-star text-stone-500"></i>';
+                }
+
+                switchView('levelComplete');
+            } else {
+                document.getElementById('finalTotalQuestions').innerText = state.totalStats.attempted;
+                document.getElementById('finalCorrectAnswers').innerText = state.totalStats.correct;
+                document.getElementById('finalIncorrectAnswers').innerText = state.totalStats.incorrect;
+                document.getElementById('finalTotalScore').innerText = `$${state.totalStats.score}`;
+
+                const acc = state.totalStats.attempted > 0 ? Math.round((state.totalStats.correct / state.totalStats.attempted) * 100) : 0;
+                document.getElementById('finalAccuracy').innerText = `${acc}%`;
+
+                switchView('results');
+            }
+        }
+
+        function switchView(viewName) {
+            state.currentView = viewName;
+            const views = ['startScreen', 'howToPlayScreen', 'calibrationScreen', 'settingsScreen', 'levelSelectScreen', 'gameplayScreen', 'levelCompleteScreen', 'resultsScreen'];
+            views.forEach(v => document.getElementById(v).classList.add('hidden'));
+            document.getElementById('gameplayHud').classList.add('hidden');
+
+            if (viewName === 'start') document.getElementById('startScreen').classList.remove('hidden');
+            if (viewName === 'howToPlay') document.getElementById('howToPlayScreen').classList.remove('hidden');
+            if (viewName === 'calibration') document.getElementById('calibrationScreen').classList.remove('hidden');
+            if (viewName === 'settings') document.getElementById('settingsScreen').classList.remove('hidden');
+            if (viewName === 'levelSelect') document.getElementById('levelSelectScreen').classList.remove('hidden');
+            if (viewName === 'gameplay') {
+                document.getElementById('gameplayScreen').classList.remove('hidden');
+                document.getElementById('gameplayHud').classList.remove('hidden');
+            }
+            if (viewName === 'levelComplete') document.getElementById('levelCompleteScreen').classList.remove('hidden');
+            if (viewName === 'results') document.getElementById('resultsScreen').classList.remove('hidden');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            soundFx.init();
+
+            document.getElementById('btnStartGame').addEventListener('click', async () => {
+                soundFx.init();
+                if (state.inputMode === 'webcam') await initMediaPipe();
+                switchView('levelSelect');
+            });
+
+            document.getElementById('btnHowToPlay').addEventListener('click', () => switchView('howToPlay'));
+            document.getElementById('btnCalibration').addEventListener('click', async () => {
+                soundFx.init();
+                if (state.inputMode === 'webcam') await initMediaPipe();
+                switchView('calibration');
+            });
+            document.getElementById('btnSettings').addEventListener('click', () => switchView('settings'));
+
+            document.getElementById('btnBackToMainFromTutorial').addEventListener('click', () => switchView('start'));
+            document.getElementById('btnBackFromCalib').addEventListener('click', () => switchView('start'));
+            document.getElementById('btnCalibComplete').addEventListener('click', () => switchView('levelSelect'));
+
+            document.getElementById('btnSaveSettings').addEventListener('click', () => switchView('start'));
+
+            document.getElementById('cardLevel1').addEventListener('click', () => startLevel(1));
+            document.getElementById('cardLevel2').addEventListener('click', () => startLevel(2));
+            document.getElementById('cardLevel3').addEventListener('click', () => startLevel(3));
+            document.getElementById('btnBackToMainFromLevel').addEventListener('click', () => switchView('start'));
+
+            document.getElementById('btnNextQuestion').addEventListener('click', () => {
+                state.currentQuestionIndex++;
+                loadCurrentQuestion();
+            });
+
+            document.getElementById('btnProceedNextLevel').addEventListener('click', () => {
+                startLevel(state.currentLevel + 1);
+            });
+
+            document.getElementById('btnPlayAgain').addEventListener('click', () => {
+                state.totalStats = { attempted: 0, correct: 0, incorrect: 0, score: 0 };
+                switchView('levelSelect');
+            });
+            document.getElementById('btnReturnMainMenu').addEventListener('click', () => {
+                state.totalStats = { attempted: 0, correct: 0, incorrect: 0, score: 0 };
+                switchView('start');
+            });
+
+            document.querySelectorAll('.target-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    if (state.currentView === 'gameplay' && !state.isAnswerLocked) {
+                        commitAnswer(card.getAttribute('data-option'));
+                    }
+                });
+            });
+
+            document.getElementById('modeToggleBtn').addEventListener('click', () => {
+                if (state.inputMode === 'webcam') switchToMouseMode();
+                else switchToWebcamMode();
+            });
+
+            document.getElementById('soundToggleBtn').addEventListener('click', () => {
+                state.soundMuted = !state.soundMuted;
+                const icon = document.getElementById('soundToggleBtn').querySelector('i');
+                icon.className = state.soundMuted ? 'fa-solid fa-volume-xmark text-lg text-rose-400' : 'fa-solid fa-volume-high text-lg text-amber-400';
+            });
+
+            document.getElementById('fullscreenBtn').addEventListener('click', () => {
+                if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+                else document.exitFullscreen().catch(() => {});
+            });
+        });
+    </script>
+</body>
+</html>
