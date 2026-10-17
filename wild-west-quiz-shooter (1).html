@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hand Gesture Quiz Shooter</title>
+<link href="https://fonts.googleapis.com/css2?family=Rye&display=swap" rel="stylesheet">
+<style>
+:root{--wood:#5a3417;--gold:#f6c453;--cream:#f7e6c0;--ink:#2b1608;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;overflow:hidden;font-family:Georgia,serif;color:var(--cream);touch-action:none;user-select:none;-webkit-user-select:none}
+body{background:#6fb6ff}
+#c{position:fixed;inset:0;width:100%;height:100%}
+.pl,.btn,h1,h2{font-family:Rye,Georgia,serif}
+#hud{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:8px;right:8px;display:flex;justify-content:space-between;gap:6px;pointer-events:none}
+.pl{background:linear-gradient(#7a4a22,#4d2c12);border:2px solid #2b1608;border-radius:10px;padding:5px 10px;box-shadow:0 3px 0 #1d0f05;font-size:clamp(11px,3.1vw,17px)}
+#q{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 10px);width:min(760px,calc(100% - 16px));background:rgba(18,26,44,.93);border:3px solid var(--wood);border-radius:14px;padding:8px 12px;display:none;font-family:system-ui,sans-serif}
+#qt{font-size:12px;color:#8fd0ff;margin-bottom:3px}#qq{font-size:clamp(14px,4vw,20px);font-weight:700;margin-bottom:7px;color:#fff}
+#opts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.o{background:#dfe8f5;color:#1a2233;border-radius:6px;padding:6px 8px;font:600 clamp(11px,3.2vw,15px) system-ui,sans-serif}
+.o b{display:inline-grid;place-items:center;width:22px;height:22px;background:#c8372d;color:#fff;border-radius:50%;margin-right:6px}
+#x{position:fixed;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border:3px solid #ff3b2f;border-radius:50%;pointer-events:none;z-index:7;display:none;box-shadow:0 0 8px #000a}
+#x::before,#x::after{content:"";position:absolute;background:#ff3b2f;left:50%;top:50%}
+#x::before{width:3px;height:62px;margin:-31px 0 0 -1px}#x::after{height:3px;width:62px;margin:-1px 0 0 -31px}
+#t{position:fixed;left:50%;top:36%;transform:translate(-50%,-50%);text-align:center;font:clamp(26px,8vw,44px) Rye,Georgia,serif;pointer-events:none;opacity:0;color:#fff;text-shadow:0 3px 0 #000;padding:8px 22px;border-radius:12px;z-index:4}
+#t small{display:block;font:700 clamp(13px,3.6vw,18px) system-ui,sans-serif}
+#t.show{animation:pop 1.7s forwards}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,-50%) scale(.3)}12%{opacity:1;transform:translate(-50%,-50%) scale(1.12)}20%{transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0}}
+#ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(20,10,4,.45);z-index:5}
+.card{background:linear-gradient(#f6e4b4,#e9cd8c);color:var(--ink);border:6px solid var(--wood);border-radius:16px;padding:16px 18px;width:min(440px,calc(100% - 24px));max-height:92%;overflow:auto;text-align:center;box-shadow:0 10px 30px #000a}
+.card h1{font-size:clamp(24px,7vw,36px);margin:4px 0 12px;color:#a3211a;text-shadow:0 2px 0 #fff8}
+.card h2{margin:4px 0 8px;color:#6b2a12}
+.btn{display:block;width:100%;margin:7px 0;padding:10px;border:3px solid #5a3417;border-radius:10px;background:linear-gradient(#ffd96a,#e49b25);color:var(--ink);font-size:18px;cursor:pointer;box-shadow:0 3px 0 #5a3417}
+.btn:active{transform:translateY(2px)}.btn.g{background:linear-gradient(#5fd36f,#2e9e4f);color:#fff}
+.card ul{list-style:none;padding:0;margin:8px 0;text-align:left;font-family:system-ui,sans-serif;font-weight:600}
+.card li::before{content:"○ ";color:#a33}.card li.ok::before{content:"✔ ";color:#1c8a3a}
+.card table{width:100%;font-family:system-ui,sans-serif;font-weight:600;border-collapse:collapse}.card td{padding:3px 4px;text-align:left}.card td+td{text-align:right}
+.card p{font-family:system-ui,sans-serif;margin:6px 0}.card input,.card select{width:100%;box-sizing:border-box;margin:5px 0;padding:10px;font:600 16px system-ui,sans-serif;border:3px solid #5a3417;border-radius:8px;background:#fffbe9;color:#2b1608;user-select:text;-webkit-user-select:text}.card small{font-weight:400}
+#cam{position:fixed;left:8px;top:calc(env(safe-area-inset-top,0px) + 52px);width:clamp(80px,22vw,130px);aspect-ratio:4/3;border:2px solid #3f3;border-radius:8px;overflow:hidden;display:none;z-index:6;background:#000}
+#cam.on{display:block}#cam.d{position:relative;left:auto;top:auto;width:min(300px,100%);margin:6px auto}
+#cam video,#cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="hud"><div class="pl" id="lv"></div><div class="pl">Score: <span id="sc">0</span></div><div class="pl"><span id="hp"></span> ⏱ <span id="tm"></span></div></div>
+<div id="q"><div id="qt"></div><div id="qq"></div><div id="opts"></div></div>
+<div id="x"></div><div id="t"></div>
+<div id="cam"><video id="v" playsinline muted></video><canvas id="hc" width="320" height="240"></canvas></div>
+<div id="ov"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=s=>document.querySelector(s),rnd=(a,b)=>a+Math.random()*(b-a);
+const SHEET_URL="";/* optional Google Apps Script web-app URL (works only when this file is hosted outside claude.ai) */
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));let P=null;
+const Q=[["What is the main purpose of the Database Life Cycle (DBLC)?",["To develop only the user interface of a system","To design, implement, and maintain a database that supports a system","To replace every phase of the SDLC","To manage computer hardware only"],1],
+["Which statement best describes the development approach of DBLC?",["Function-oriented","Hardware-oriented","Data-oriented","Network-oriented"],2],
+["What is the main focus of the Systems Development Life Cycle (SDLC)?",["The overall process of developing a system","Only database backup","Only physical storage","Only data conversion"],0],
+["How are DBLC and SDLC related?",["SDLC covers only DBLC","DBLC covers the database part of SDLC","They are unrelated processes","DBLC replaces system development"],1],
+["Which sequence correctly lists the six DBLC phases?",["Design, Initial Study, Operation, Testing, Maintenance, Loading","Initial Study, Design, Implementation and Loading, Testing and Evaluation, Operation, Maintenance and Evolution","Initial Study, Testing, Design, Operation, Loading, Maintenance","Planning, Coding, Marketing, Testing, Sales, Retirement"],1],
+["Which is a basic factor influencing the Initial Study phase?",["Tasks to be carried out","The final user manual only","Security audit results only","The number of answer choices in a quiz"],0],
+["What is one purpose of analysing the organisation’s current situation?",["To understand operational components and how they interact","To select the final font for the user interface","To remove all user requirements","To skip feasibility research"],0],
+["What should the objectives of a proposed database system do?",["Solve the problems that have been identified","Increase the number of database tables regardless of need","Replace all organisational policies","Focus only on hardware cost"],0],
+["In Initial Study, what does scope mean?",["The extent of the proposed database design according to operational requirements","The physical location of every server","The list of all employees in the organisation","The length of a testing session"],0],
+["What does feasibility research assess?",["Suitability and potential in technology, economy, and administration","Only the colour scheme of the database","Only the number of tables","Only whether the system has a mobile app"],0],
+["Which phase is described as the most important stage in DBLC?",["Initial Study","Design","Operation","Maintenance and Evolution"],1],
+["Which is a purpose of the Design phase?",["Represent data and relationships between data","Prepare user training only","Conduct backup only","Install the DBMS only"],0],
+["Which set contains the three design activities?",["Conceptual, logical, and physical design","Planning, marketing, and sales","Backup, recovery, and audit","Unit, integration, and system test"],0],
+["Which task belongs to conceptual design?",["Define entities, attributes, domains, and relationships","Install the DBMS","Prepare the user manual","Perform routine backup"],0],
+["What is the purpose of drawing an Entity-Relationship Diagram (ERD)?",["To represent entities and relationships in the data model","To install database software","To convert all files to a new format","To train end users"],0],
+["What does data model verification involve?",["Testing the ERD against proposed system processes and functions","Installing the operating system","Choosing the organisation’s budget","Creating user accounts only"],0],
+["What happens during logical design?",["ERD objects are translated into a representation compatible with the DBMS data model","The system is operated in its actual environment","Only backups are performed","Users receive only technical support"],0],
+["Which task is associated with logical design?",["Define tables, columns, relationships, and constraints","Prepare the user manual","Install the DBMS","Perform corrective recovery after failure"],0],
+["What is checked during integrity constraints verification in logical design?",["Domain, entity, and referential integrity constraints","The colours used in an ERD","The number of users in training","The order of project presentations"],0],
+["What is the focus of physical design?",["Physical aspects of stored data and system performance","Defining organisational objectives only","Training users only","Writing the feasibility report only"],0],
+["Which is an example of a technical decision in physical design?",["Selecting suitable indexes","Writing a user manual","Defining organisational problems","Choosing a pilot department"],0],
+["Which activity belongs to Implementation and Loading?",["Set up the DBMS","Define the organisation’s current situation","Draw the ERD only","Prepare a feasibility report"],0],
+["Which language is used to create database tables and the data dictionary?",["DML","DDL","DCL","TCL"],1],
+["Which language is used to load data into database tables?",["DDL","DCL","DML","TCL"],2],
+["Which tests are listed for database and application procedures in Testing and Evaluation?",["Unit test, integration test, and system test","Alpha test, marketing test, and sales test","Backup test only","Design test and budget test only"],0],
+["Which two aspects are specifically mentioned for database evaluation?",["Performance and security","Colour and animation","Budget and marketing","Training and documentation only"],0],
+["Which statement about the Operation phase is correct?",["It begins when the system operates in an actual environment","It occurs before Initial Study","It consists only of drawing an ERD","It excludes user support"],0],
+["Which is one of the transition (changeover) approaches listed for Operation?",["Parallel transition","Entity transition","Logical transition","Index transition"],0],
+["Which is an example of preventive maintenance?",["Backup","Recovery","Adding attributes to improve performance","Security audit"],0],
+["Which task is listed as part of routine maintenance performed by a DBA?",["Security audits","Drawing the initial ERD only","Defining project scope only","Preparing the original feasibility report only"],0]];
+const LV=[{n:"Training Camp",tp:"DBLC Basics & Initial Study",s:"Learn the basics and get your first score! (Q1–10)",t:30,end:10},{n:"Desert Challenge",tp:"The Design Phase",s:"Targets are on the move – keep your aim steady! (Q11–20)",t:25,end:20},{n:"Canyon Rush",tp:"Implementation to Maintenance",s:"Boss level! Answer correctly to win! (Q21–30)",t:25,end:30}];
+const PAL=[["#5fb0ff","#ffe6b8"],["#e9803c","#ffc684"],["#3a2a66","#ff7b3e"]];
+let G={state:"menu",lv:0,qi:0,score:0,lives:3,ok:0,bad:0,none:0,t:0},snd=true,W=1,H=1,hw=6,hh=4,r=.85,rec=0;
+
+/* ---------- 3D scene ---------- */
+const R=new THREE.WebGLRenderer({canvas:$("#c"),antialias:true,alpha:true});
+R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;R.setPixelRatio(Math.min(devicePixelRatio,1.5));
+const S=new THREE.Scene(),cam3=new THREE.PerspectiveCamera(50,1,.1,300);
+cam3.position.set(0,2.2,8);cam3.lookAt(0,2.2,0);S.add(cam3);
+const mat=(c,ro=.9,m=0)=>new THREE.MeshStandardMaterial({color:c,roughness:ro,metalness:m,flatShading:true});
+function add(g,m,x,y,z,o){const k=new THREE.Mesh(g,m);k.position.set(x,y,z);k.castShadow=k.receiveShadow=true;(o||S).add(k);return k}
+S.add(new THREE.HemisphereLight(0xffe8c0,0x8a4b2a,.8));
+const dl=new THREE.DirectionalLight(0xffd29a,1.25);dl.position.set(-8,12,8);dl.castShadow=true;dl.shadow.mapSize.set(1024,1024);
+Object.assign(dl.shadow.camera,{left:-14,right:14,top:14,bottom:-14,near:1,far:40});S.add(dl);
+const ground=add(new THREE.PlaneGeometry(400,400),mat(0xd9a066,1),0,0,0);ground.rotation.x=-Math.PI/2;
+[[-30,-50,14,9],[-8,-75,22,13],[28,-55,12,8],[50,-85,24,14],[-58,-85,18,12],[8,-40,6,5],[-18,-38,9,6]].forEach(([x,z,h,rr])=>{add(new THREE.CylinderGeometry(rr*.8,rr,h,7),mat(0xb5532a),x,h/2,z).rotation.y=rnd(0,3)});
+function cactus(x,z,s){const g=new THREE.Group(),m=mat(0x3d8a45);add(new THREE.CylinderGeometry(.22,.26,2.4,8),m,0,1.2,0,g);add(new THREE.SphereGeometry(.22,8,6),m,0,2.4,0,g);
+[[-.5,1.4],[.5,1.1]].forEach(([dx,y])=>{add(new THREE.CylinderGeometry(.12,.12,.9,8),m,dx,y+.45,0,g);add(new THREE.CylinderGeometry(.12,.12,.5,8).rotateZ(Math.PI/2),m,dx/2,y,0,g)});g.position.set(x,0,z);g.scale.setScalar(s);S.add(g)}
+[[-6,-4,1.3],[7,-6,1.5],[-11,2,1.2],[12,0,1.4],[-3,-14,2],[14,-16,2.2],[-16,-10,1.8]].forEach(a=>cactus(...a));
+(()=>{const g=new THREE.Group(),w=mat(0x8a5a33),d=mat(0x5a3417);add(new THREE.BoxGeometry(7,4,5),w,0,2,0,g);add(new THREE.BoxGeometry(7.4,2.2,.3),w,0,4.6,2.6,g);add(new THREE.BoxGeometry(8,.3,2.5),d,0,3.3,3.5,g);
+[-3.5,0,3.5].forEach(x=>add(new THREE.BoxGeometry(.25,3.3,.25),d,x,1.65,4.6,g));add(new THREE.BoxGeometry(5,1,.1),mat(0xf4d27a),0,4.6,2.8,g);g.position.set(-18,0,-14);g.rotation.y=.35;S.add(g)})();
+const sun=add(new THREE.SphereGeometry(7,24,16),new THREE.MeshBasicMaterial({color:0xfff1c0,fog:false}),-35,22,-130);sun.castShadow=false;
+const tw=add(new THREE.IcosahedronGeometry(.5,1),new THREE.MeshStandardMaterial({color:0x8a6a3a,wireframe:true}),0,.5,3);
+const boss=new THREE.Group();(()=>{const k=mat(0x201814),sk=mat(0xd9a27a);add(new THREE.CylinderGeometry(.5,.7,1.8,10),k,0,1.2,0,boss);add(new THREE.SphereGeometry(.38,12,10),sk,0,2.35,0,boss);
+add(new THREE.CylinderGeometry(.8,.8,.06,16),k,0,2.62,0,boss);add(new THREE.CylinderGeometry(.38,.45,.45,12),k,0,2.85,0,boss);add(new THREE.BoxGeometry(.9,.25,.5),mat(0xb32b22),0,1.95,.1,boss);
+[-.25,.25].forEach(x=>add(new THREE.CylinderGeometry(.16,.18,.7,8),k,x,.35,0,boss))})();boss.position.set(0,0,-3.5);boss.visible=false;S.add(boss);
+/* targets */
+const tex=L=>{const c=document.createElement("canvas");c.width=c.height=256;const g=c.getContext("2d");g.fillStyle="#8a5a2b";g.fillRect(0,0,256,256);
+[[120,"#d33"],[96,"#f4efe2"],[72,"#d33"],[50,"#f4efe2"],[36,"#d33"]].forEach(([rr,f])=>{g.fillStyle=f;g.beginPath();g.arc(128,128,rr,0,7);g.fill()});
+g.fillStyle="#fff";g.font="bold 54px Georgia";g.textAlign="center";g.textBaseline="middle";g.fillText(L,128,132);return new THREE.CanvasTexture(c)};
+const tg=[0,1,2,3].map(i=>{const g=new THREE.Group();g.userData={t:1,i,on:0};add(new THREE.CylinderGeometry(1,1,.25,32).rotateX(Math.PI/2),mat(0x6b3f1c,.8),0,0,0,g);
+const f=new THREE.Mesh(new THREE.CircleGeometry(.9,32),new THREE.MeshStandardMaterial({map:tex("ABCD"[i]),roughness:.7}));f.position.z=.13;g.add(f);g.userData.f=f;g.visible=false;S.add(g);return g});
+/* gun (first-person cowboy hand) */
+const gun=new THREE.Group();(()=>{const m=mat(0x6d7178,.35,.8),w=mat(0x6b3f1c,.7),sk=mat(0xe0a780,.8),sl=mat(0xb32b22,.9);
+add(new THREE.CylinderGeometry(.022,.026,.55,12).rotateX(Math.PI/2),m,0,.03,-.3,gun);add(new THREE.CylinderGeometry(.055,.055,.12,12).rotateX(Math.PI/2),m,0,0,-.02,gun);
+add(new THREE.BoxGeometry(.05,.17,.07),w,0,-.1,.06,gun).rotation.x=-.35;add(new THREE.BoxGeometry(.03,.05,.03),m,0,.07,.04,gun);
+add(new THREE.BoxGeometry(.09,.1,.12),sk,0,-.1,.08,gun);add(new THREE.CylinderGeometry(.06,.07,.5,10).rotateX(Math.PI/2),sl,0,-.14,.36,gun)})();
+const fl=add(new THREE.SphereGeometry(.06,8,8),new THREE.MeshBasicMaterial({color:0xffdd77}),0,.03,-.62,gun);fl.visible=false;
+const ml=new THREE.PointLight(0xffb060,0,6);ml.position.set(0,.03,-.6);gun.add(ml);gun.traverse(o=>o.castShadow=false);gun.position.set(.34,-.17,-.7);cam3.add(gun);
+/* particles */
+const NP=300,pp=new Float32Array(NP*3).fill(-99),pc=new Float32Array(NP*3),pv=new Float32Array(NP*3),pl=new Float32Array(NP),pg=new THREE.BufferGeometry();
+pg.setAttribute("position",new THREE.BufferAttribute(pp,3));pg.setAttribute("color",new THREE.BufferAttribute(pc,3));
+const pts=new THREE.Points(pg,new THREE.PointsMaterial({size:.2,vertexColors:true,transparent:true,depthWrite:false}));pts.frustumCulled=false;S.add(pts);let pi=0;
+function burst(p,col,n){const c=new THREE.Color(col);for(let k=0;k<n;k++){const i=pi++%NP;pp.set([p.x,p.y,p.z],i*3);pv.set([(Math.random()-.5)*7,Math.random()*5,(Math.random()-.2)*5],i*3);pc.set([c.r,c.g,c.b],i*3);pl[i]=1}}
+function setLevel(l){const[a,b]=PAL[l];document.body.style.background=`linear-gradient(${a},${b})`;S.fog=new THREE.Fog(new THREE.Color(b),30,140);dl.color.set(l==2?0xff8a50:0xffd29a);sun.material.color.set(l==2?0xff9a50:0xfff1c0)}
+function layout(){W=innerWidth;H=innerHeight;const a=W/H;R.setSize(W,H,false);cam3.aspect=a;cam3.fov=a<1.2?2*Math.atan(Math.tan(25*Math.PI/180)*1.2/a)*180/Math.PI:50;cam3.updateProjectionMatrix();
+hh=Math.tan(cam3.fov*Math.PI/360)*8;hw=hh*a;r=Math.min(.85,hw*.17);tg.forEach(g=>{const u=g.userData;if(u.on){const s=sl()[u.k];u.bx=s[0];u.by=s[1]}})}
+const sl=()=>{const top=2.2+hh*.5,lo=2.2+hh*.02;return hw/hh>1.25?[[-.62,top],[-.22,lo],[.22,top],[.62,lo]].map(([u,y])=>[u*hw*.85,y]):[[-.5,top],[.5,top],[-.5,lo],[.5,lo]].map(([u,y])=>[u*hw,y])};
+addEventListener("resize",layout);
+
+/* ---------- audio ---------- */
+let AC,mg;const ac=()=>{if(!AC){AC=new(window.AudioContext||window.webkitAudioContext)();mg=AC.createGain();mg.gain.value=.28;mg.connect(AC.destination)}return AC};
+function tone(f,d,ty,v,f2){if(!snd)return;const a=ac(),o=a.createOscillator(),g=a.createGain();o.type=ty;o.frequency.setValueAtTime(f,a.currentTime);f2&&o.frequency.exponentialRampToValueAtTime(f2,a.currentTime+d);g.gain.setValueAtTime(v,a.currentTime);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+d);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+d)}
+function bang(){if(!snd)return;const a=ac(),n=a.sampleRate*.25|0,b=a.createBuffer(1,n,a.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,3);const s=a.createBufferSource(),g=a.createGain();g.gain.value=.5;s.buffer=b;s.connect(g).connect(a.destination);s.start()}
+
+/* music + fun sfx */
+let mus=true,mt=0,ms=0,mi=0;const hz=n=>440*Math.pow(2,(n-69)/12);
+const BS=[40,0,40,40,40,0,40,40,45,0,45,45,47,0,47,47],LD=[76,0,0,79,0,76,0,0,77,0,76,0,74,0,71,0],CH=[[52,55,59],[52,55,59],[57,60,64],[59,63,66]];
+function nt(f,t,d,ty,v){const a=ac(),o=a.createOscillator(),g=a.createGain();o.type=ty;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(mg);o.start(t);o.stop(t+d+.02)}
+function nz(t,d,v){const a=ac(),n=a.sampleRate*d|0,b=a.createBuffer(1,n,a.sampleRate),x=b.getChannelData(0);for(let i=0;i<n;i++)x[i]=(Math.random()*2-1)*(1-i/n);const o=a.createBufferSource(),g=a.createGain();g.gain.value=v;o.buffer=b;o.connect(g).connect(mg);o.start(t)}
+function sched(){if(!mus||!AC)return;const dt=[.24,.21,.18][G.lv||0];while(mt<AC.currentTime+.4){const s=ms%16,t=mt;BS[s]&&nt(hz(BS[s]),t,.22,"triangle",.5);
+if(s%4==2)CH[s>>2].forEach((n,k)=>nt(hz(n),t+k*.012,.18,"sawtooth",.06));LD[s]&&nt(hz(LD[s]),t,dt*2,"sine",.16);s%4==0&&nt(70,t,.14,"sine",.6);s%8==4&&nz(t,.1,.22);s%2&&nz(t,.03,.05);mt+=dt;ms++}}
+function musicOn(){if(!mus)return;ac().resume();if(!mi){mt=AC.currentTime+.1;mi=setInterval(sched,100)}}
+function toggleMus(b){mus=!mus;b.textContent="Music: "+(mus?"On":"Off");if(mus){mt=ac().currentTime+.1;musicOn()}}
+const seq=(fs,d,ty,v)=>fs.forEach((f,i)=>setTimeout(()=>tone(f,d,ty,v),i*d*700));
+const yee=t=>{if(!snd)return;try{const u=new SpeechSynthesisUtterance(t);u.pitch=1.6;u.rate=1.1;speechSynthesis.speak(u)}catch(e){}};
+document.addEventListener("click",e=>{e.target.closest(".btn")&&tone(600,.07,"square",.05,900)});
+/* ---------- input: hand + pointer ---------- */
+let calibOn=false,cx=innerWidth/2,cy=innerHeight/2,tx=cx,ty=cy,seen=0,hist=[],armed=true,lastFire=0,mn=1,mx=0,ck=[0,0,0,0],camOn=false,hands,busy=false,lastRes=0;
+const tick=i=>{ck[i]=1;const e=$("#k"+i);e&&e.classList.add("ok")};
+const hasHand=()=>performance.now()-seen<500;
+addEventListener("pointermove",e=>{if(!hasHand()){tx=e.clientX;ty=e.clientY;calibOn&&tick(2)}});
+addEventListener("pointerdown",e=>{ac().resume&&ac().resume();if(e.target.closest("button")||(e.target.closest(".card")&&!calibOn))return;calibOn&&tick(3);if(!hasHand()){cx=tx=e.clientX;cy=ty=e.clientY}shoot(cx,cy)});
+function fire(){tick(3);const h=hist[0];if(h&&G.state=="play"){cx=tx=h.x;cy=ty=h.y}shoot(cx,cy)}
+function onHand(res){lastRes=performance.now();const g=$("#hc").getContext("2d");g.clearRect(0,0,320,240);const L=res.multiHandLandmarks&&res.multiHandLandmarks[0];if(!L)return;
+const now=performance.now();seen=now;tick(0);g.fillStyle="#3f3";L.forEach(p=>{g.beginPath();g.arc(p.x*320,p.y*240,3,0,7);g.fill()});
+const d=(a,b)=>Math.hypot(L[a].x-L[b].x,L[a].y-L[b].y),s=d(0,9)||1,idx=d(8,0)/s>1.55,pist=idx&&d(12,0)/s<1.45&&d(16,0)/s<1.45;
+if(idx){const k=v=>Math.min(1,Math.max(0,v));tx=W*k((1-L[8].x-.5)*1.5+.5);ty=H*k((L[8].y-.5)*1.5+.5);hist.push({t:now,x:tx,y:ty});while(hist[0].t<now-250)hist.shift();
+mn=Math.min(mn,L[8].x);mx=Math.max(mx,L[8].x);if(mx-mn>.15)tick(2)}
+if(pist){tick(1);const td=d(4,9)/s;if(td>.8)armed=true;if(armed&&td<.5&&now-lastFire>450){armed=false;lastFire=now;fire()}}}
+function loadJS(u){return new Promise((ok,no)=>{const s=document.createElement("script");s.src=u;s.onload=ok;s.onerror=()=>no("script");document.head.appendChild(s)})}
+const msg=t=>{const m=$("#msg");if(m)m.textContent=t};
+async function startCam(){msg("Starting camera…");
+try{const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:640,height:480},audio:false});const v=$("#v");v.srcObject=st;await v.play();$("#cam").classList.add("on");camOn=true;
+msg("Loading hand tracking…");const B="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/";await loadJS(B+"hands.js");
+mkHands();
+await Promise.race([hands.send({image:v}),new Promise((_,j)=>setTimeout(()=>j("timeout"),25000))]);msg("Show your hand like a pistol 👉");pump()}
+catch(e){camOn=false;$("#cam").classList.remove("on");msg("Hand tracking isn’t available here ("+(e.name||e)+"). Use mouse or touch: move to aim, click or tap to shoot.")}}
+const MPB="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/";
+function mkHands(){try{hands&&hands.close&&hands.close()}catch(e){}hands=new Hands({locateFile:f=>MPB+f});hands.setOptions({maxNumHands:1,modelComplexity:0,minDetectionConfidence:.5,minTrackingConfidence:.5});hands.onResults(onHand);lastRes=performance.now()+8000}
+async function pump(){if(!camOn)return;const v=$("#v"),n=performance.now();if(v.paused)v.play().catch(()=>{});
+if(n-lastRes>5000&&!busy)mkHands();/* tracker went silent: restart it */
+$("#cam").style.borderColor=n-seen<500?"#3f3":"#f44";
+if(v.readyState>=2&&!busy){busy=true;try{await Promise.race([hands.send({image:v}),new Promise((_,j)=>setTimeout(()=>j(0),2000))])}catch(e){}busy=false}requestAnimationFrame(pump)}
+
+/* ---------- game flow ---------- */
+const ov=h=>{calibOn=false;const c=$("#cam");document.body.appendChild(c);c.classList.remove("d");const o=$("#ov");o.innerHTML=`<div class="card">${h}</div>`;o.style.display="flex"},cl=()=>$("#ov").style.display="none";
+function clear(){tg.forEach(g=>g.userData.on=0);boss.visible=false}
+function reg(){G.state="menu";clear();ov(`<h1>HAND GESTURE<br>QUIZ SHOOTER</h1><p><b>DAT20103 Database · Topic 3: DBLC</b></p><input id="pn" placeholder="Full name" autocomplete="off" value="${P?esc(P.name):""}"><input id="pm" placeholder="Matrix number" autocomplete="off" value="${P?esc(P.mat):""}"><select id="ps"><option value="">Select section</option>${[1,2,3,4,5,6].map(n=>`<option value="${n}"${P&&P.sec==n?" selected":""}>Section ${n}</option>`).join("")}</select><p id="rm" style="color:#a3211a"></p><button class="btn g" onclick="login()">Enter the Saloon 🤠</button>`)}
+function login(){const n=$("#pn").value.trim(),m=$("#pm").value.trim().toUpperCase(),c=$("#ps").value;if(!n||!m||!c){$("#rm").textContent="Please enter your name, matrix number and section.";return}P={name:n,mat:m,sec:c};musicOn();menu()}
+function menu(){G.state="menu";clear();ov(`<h2>Howdy, ${esc(P.name)}! 🤠</h2><p>${esc(P.mat)} · Section ${esc(P.sec)}</p><button class="btn" onclick="newGame()">Start Game</button><button class="btn" onclick="howto()">How to Play</button><button class="btn" onclick="calib()">Calibration</button><button class="btn" onclick="sett()">Settings</button><button class="btn" id="tb" style="display:none" onclick="teacher()">📊 Lecturer Results</button><button class="btn" onclick="reg()">Change Player</button>`);
+window.claude&&claude.use("user").then(u=>u&&(u.isOwner()||u.canEdit())&&($("#tb").style.display="block")).catch(()=>{})}
+function howto(){ov(`<h2>HOW TO PLAY</h2><p><b>Use your hand like a pistol</b></p><p>👉 <b>AIM</b> – point your index finger at a target</p><p>👇 <b>SHOOT</b> – move your thumb down to fire</p><p>Shoot the target with the correct answer. Right = +100 points (1 mark). Wrong or too slow = 0.</p><p><i>No camera? Move the mouse to aim and click (or tap on a phone) to shoot.</i></p><button class="btn" onclick="menu()">Back</button>`)}
+function sett(){ov(`<h2>SETTINGS</h2><button class="btn" onclick="snd=!snd;this.textContent='Sound effects: '+(snd?'On':'Off')">Sound effects: ${snd?"On":"Off"}</button><button class="btn" onclick="toggleMus(this)">Music: ${mus?"On":"Off"}</button><button class="btn" onclick="menu()">Back</button>`)}
+function bye(){ov(`<h2>See you, partner! 🤠</h2><p>Close this tab whenever you’re ready, or ride again.</p><button class="btn" onclick="menu()">Back to Menu</button>`)}
+function calib(){ck=[0,0,0,0];mn=1;mx=0;ov(`<h2>CALIBRATION</h2><p>Make sure your hand is clearly visible in the camera.</p><p><small>No camera? Just move your mouse or finger and tap to test aiming and shooting.</small></p><div id="slot"></div><ul><li id="k0">Hand detected</li><li id="k1">Pistol gesture recognised</li><li id="k2">Aiming works</li><li id="k3">Shooting works</li></ul><p id="msg"></p>${camOn?"":`<button class="btn" onclick="startCam()">Enable Camera</button>`}<button class="btn g" onclick="newGame()">Ready to Play!</button><button class="btn" onclick="menu()">Back</button>`);
+calibOn=true;const c=$("#cam");$("#slot").appendChild(c);c.classList.add("d");ck.forEach((v,i)=>v&&tick(i));if(camOn)msg("Show your hand like a pistol 👉")}
+function newGame(){G={state:"intro",lv:0,qi:0,score:0,lives:3,ok:0,bad:0,none:0,t:0,st:0,ans:0};startLevel()}
+function startLevel(){clear();G.state="intro";setLevel(G.lv);const l=LV[G.lv];ov(`<h2>LEVEL ${G.lv+1} – ${l.n.toUpperCase()}</h2><p><b>${l.tp}</b></p><p>${l.s}</p><p>⏱ ${l.t}s per question</p><button class="btn g" onclick="go()">Let’s Ride!</button>`)}
+function go(){cl();musicOn();beginQ()}
+function hud(){$("#sc").textContent=G.score;$("#hp").textContent=`✔${G.ok} ✖${G.bad+G.none}`;$("#lv").textContent=`L${G.lv+1} · ${LV[G.lv].n}`}
+function beginQ(){const q=Q[G.qi],p=[0,1,2,3].sort(()=>Math.random()-.5),o=[0,1,2,3].sort(()=>Math.random()-.5),s=sl();G.state="play";G.t=LV[G.lv].t;G.ans=o.indexOf(q[2]);
+tg.forEach((g,i)=>{Object.assign(g.userData,{on:1,dead:0,d:0,glow:0,age:-i*.1,k:p[i],bx:s[p[i]][0],by:s[p[i]][1],ph:rnd(0,6)});g.rotation.z=0;g.userData.f.material.emissive.set(0)});
+$("#qt").textContent=`Q${G.qi+1}/${Q.length}   Topic: ${LV[G.lv].tp}`;$("#qq").textContent=q[0];$("#opts").innerHTML=o.map((k,i)=>`<div class="o"><b>${"ABCD"[i]}</b>${esc(q[1][k])}</div>`).join("");boss.visible=G.lv==2;hud()}
+function toast(a,b,c){const t=$("#t");t.innerHTML=`${a}<small>${b}</small>`;t.style.background=c;t.className="";void t.offsetWidth;t.className="show"}
+function shoot(x,y){bang();rec=1;if(G.state!="play")return;const rc=new THREE.Raycaster();rc.setFromCamera({x:x/W*2-1,y:-(y/H*2-1)},cam3);
+const h=rc.intersectObjects(tg.filter(g=>g.visible&&!g.userData.dead),true)[0];if(h){let o=h.object;while(!o.userData.t)o=o.parent;resolve(o.userData.i,h.point)}
+else{tone(1400,.2,"sawtooth",.04,300);const gh=rc.intersectObject(ground)[0];gh&&burst(gh.point,0xd9a066,14)}}
+function resolve(i,p){G.state="fb";const ok=i===G.ans;i>=0&&(tg[i].userData.dead=1);
+if(ok){G.score+=100;G.ok++;G.st++;seq([523,659,784,1047],.18,"triangle",.2);burst(p,0x55ff66,70);toast("CORRECT!","+100 Points","#2fa84f");G.st%3==0&&yee("Yee haw!")}
+else{G.bad+=i>=0;G.none+=i<0;G.st=0;seq([311,277,247,196],.3,"sawtooth",.12);i>=0&&burst(p,0xff4433,60);const c=tg[G.ans].userData;c.glow=1;c.f.material.emissive.set(0x22aa33);toast(i<0?"TIME’S UP!":"WRONG!","Correct answer: "+"ABCD"[G.ans],"#c8372d")}
+hud();setTimeout(next,1900)}
+function next(){G.qi++;if(G.qi>=Q.length)return end();if(G.qi>=LV[G.lv].end){G.state="between";clear();seq([392,392,392,523,659,784],.25,"square",.08);yee("Yee haw!");
+ov(`<h2>MISSION COMPLETED!</h2><p>${G.ok} of ${G.qi} correct so far</p><ul><li class="ok">Knowledge</li><li class="ok">Speed</li><li class="ok">Accuracy</li></ul><button class="btn g" onclick="G.lv++;startLevel()">NEXT LEVEL ➜</button>`)}else beginQ()}
+function end(){G.state="end";clear();seq([523,659,784,659,784,1047],.25,"square",.08);const n=Q.length;
+ov(`<h2>GAME RESULT</h2><p><b>${esc(P.name)}</b><br>${esc(P.mat)} · Section ${esc(P.sec)}</p><table><tr><td>Final Score</td><td>${G.score}</td></tr><tr><td>Mark</td><td>${G.ok} / ${n}</td></tr><tr><td>Correct Answers</td><td>${G.ok}</td></tr><tr><td>Incorrect Answers</td><td>${G.bad}</td></tr><tr><td>Unanswered</td><td>${G.none}</td></tr><tr><td>Accuracy</td><td>${Math.round(G.ok/n*100)}%</td></tr></table><p id="sv">Saving your result…</p><button class="btn" id="cp" onclick="copyRes()">Copy My Result</button><button class="btn g" onclick="newGame()">↻ Play Again</button><button class="btn" onclick="menu()">Main Menu</button>`);submit()}
+function copyRes(){navigator.clipboard.writeText(`${P.name} | ${P.mat} | Section ${P.sec} | ${G.ok}/${Q.length}`).then(()=>$("#cp").textContent="Copied ✔").catch(()=>{})}
+async function submit(){const rec={name:P.name,matrix:P.mat,section:P.sec,correct:G.ok,wrong:G.bad,unanswered:G.none,total:Q.length,percent:Math.round(G.ok/Q.length*100),score:G.score,time:new Date().toISOString()};let ok=false;
+try{const db=window.claude&&await claude.use("db");if(db){await db.collection("results").doc(P.mat.replace(/\W/g,"")+"_"+Date.now()).set(rec);ok=true}}catch(e){}
+if(SHEET_URL)try{await fetch(SHEET_URL,{method:"POST",mode:"no-cors",body:JSON.stringify(rec)});ok=true}catch(e){}
+const e=$("#sv");e&&(e.textContent=ok?"✅ Result submitted to your lecturer!":"⚠ Couldn’t submit automatically. Tap “Copy My Result” and send it to your lecturer.")}
+async function teacher(){ov(`<h2>RESULTS</h2><p>Loading…</p>`);try{const db=await claude.use("db"),sn=await db.collection("results").orderBy("time","desc").get(),rows=sn.docs.map(d=>d.data());
+const fx=v=>{v=String(v==null?"":v);return /^[=+\-@]/.test(v)?"'"+v:v},qc=v=>'"'+fx(v).replace(/"/g,'""')+'"',head=["Name","Matrix","Section","Correct","Total","Percent","Submitted"],cells=r=>[r.name,r.matrix,r.section,r.correct,r.total,r.percent,r.time];
+const csv=[head.map(qc),...rows.map(r=>cells(r).map(qc))].map(a=>a.join(",")).join("\r\n"),tsv=[head,...rows.map(r=>cells(r).map(v=>fx(v).replace(/[\t\n]/g," ")))].map(a=>a.join("\t")).join("\n");
+ov(`<h2>RESULTS (${rows.length})</h2><div style="max-height:45vh;overflow:auto"><table>${rows.map(r=>`<tr><td>${esc(r.name)}<br><small>${esc(r.matrix)} · Sec ${esc(r.section)}</small></td><td>${esc(r.correct)}/${esc(r.total)}</td></tr>`).join("")}</table></div><button class="btn" id="tc">Copy for Google Sheets</button><button class="btn" id="td">Download CSV</button><button class="btn" onclick="menu()">Back</button>`);
+$("#tc").onclick=()=>navigator.clipboard.writeText(tsv).then(()=>$("#tc").textContent="Copied – paste into Sheets ✔");
+$("#td").onclick=async()=>{const dl=await claude.use("downloads");dl&&dl.save({filename:"quiz-results.csv",data:csv}).catch(()=>{})}}
+catch(e){ov(`<h2>RESULTS</h2><p>Couldn’t load results.</p><button class="btn" onclick="menu()">Back</button>`)}}
+
+/* ---------- main loop ---------- */
+let last=0;const fwd=new THREE.Vector3(0,0,-1),X=new THREE.Vector3(1,0,0),q2=new THREE.Quaternion();
+function frame(ms){const t=ms/1000,dt=Math.min(.05,t-last);last=t;
+cx+=(tx-cx)*.3;cy+=(ty-cy)*.3;const live=G.state=="play"||G.state=="fb";
+$("#x").style.display=(live||calibOn)?"block":"none";$("#hud").style.display=live?"flex":"none";$("#q").style.display=live?"block":"none";$("#x").style.transform=`translate(${cx}px,${cy}px)`;
+if(G.state=="play"){const c0=Math.ceil(G.t);G.t-=dt;const c1=Math.ceil(G.t);$("#tm").textContent=Math.max(0,c1)+"s";if(c1<c0&&c1<=5&&c1>0)tone(900,.06,"square",.05);if(G.t<=0)resolve(-1)}
+tg.forEach(g=>{const u=g.userData;if(!u.on){g.visible=false;return}u.age+=dt;let s=Math.max(0,Math.min(1,u.age*3));s=1-Math.pow(1-s,3);
+if(u.dead){u.d+=dt;s*=Math.max(0,1-u.d*3);g.rotation.z+=dt*10;g.position.y+=dt*2}
+else{const am=[0,.14,.24][G.lv]*hw,sp=[0,1.2,1.8][G.lv];g.position.set(u.bx+Math.sin(t*sp+u.ph)*am,u.by+Math.sin(t*1.4+u.ph)*.12,0);if(u.glow)s*=1+.08*Math.sin(t*10)}
+g.scale.setScalar(Math.max(.001,s*r));g.visible=s>.02});
+for(let i=0;i<NP;i++)if(pl[i]>0){pv[i*3+1]-=9*dt;for(let k=0;k<3;k++)pp[i*3+k]+=pv[i*3+k]*dt;pl[i]-=dt*1.2;if(pl[i]<=0)pp[i*3+1]=-99}
+pg.attributes.position.needsUpdate=true;pg.attributes.color.needsUpdate=true;
+tw.position.x+=dt*1.5;if(tw.position.x>hw+3)tw.position.x=-hw-3;tw.rotation.z-=dt*3;tw.position.y=.5+Math.abs(Math.sin(t*3))*.25;
+rec=Math.max(0,rec-dt*6);gun.position.z=-.7+rec*.1;const th=Math.tan(cam3.fov*Math.PI/360),dir=new THREE.Vector3((cx/W*2-1)*th*cam3.aspect*8,-(cy/H*2-1)*th*8,-8).sub(gun.position).normalize();
+gun.quaternion.setFromUnitVectors(fwd,dir).multiply(q2.setFromAxisAngle(X,rec*.3));fl.visible=rec>.75;ml.intensity=rec>.75?4:0;
+R.render(S,cam3);requestAnimationFrame(frame)}
+layout();setLevel(0);reg();requestAnimationFrame(frame);
+</script></body></html>
