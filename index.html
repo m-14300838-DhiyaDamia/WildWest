@@ -51,7 +51,7 @@ const SHEET_URL="https://script.google.com/macros/s/AKfycbzeeZ9eX8BuULL664dp7rGq
 const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));let P=null;
 const Q=[["What is the main purpose of the Entity-Relationship Model (ERM)?",["Describing the relationships between entities at the conceptual level","Defining SQL commands for inserting data","Measuring the speed of a computer processor","Designing the layout of a web page"],0],
 ["In Chen notation, which symbol represents an entity?",["Diamond shape","Rectangle","Oval shape","Dashed line only"],1],
-["Which of the following is an example of an entity, based on the Topic 4 Part 1 slides?",["matric_no","programme","STUDENT","name"],2],
+["Which of the following is an example of an entity?",["matric_no","programme","STUDENT","name"],2],
 ["What form of label is normally used for entity names in an ERD?",["A verb in lowercase","An adjective in uppercase","Numbers only","A noun in uppercase"],3],
 ["In the STUDENT example, which one is an attribute?",["matric_no","STUDENT","teaches","UNIVERSITY"],0],
 ["What is a simple attribute?",["An attribute that has many values","An attribute that is not broken down into additional attributes","An attribute whose value is calculated from other attributes","An attribute made up of several subattributes"],1],
@@ -74,11 +74,11 @@ const Q=[["What is the main purpose of the Entity-Relationship Model (ERM)?",["D
 ["A student scores 0 in a quiz. How is this different from a student who has not taken the quiz?",["Both must be null","A score of 0 is not allowed in the domain","A score of 0 is a known value, while a score that is not yet available can be null","Both must be keys"],2],
 ["What does participation describe in a relationship?",["The maximum number of relationships","The number of attributes of an entity","The symbol for a key","The minimum number of entity occurrences that are related"],3],
 ["If an entity’s participation in a relationship is optional, what minimum cardinality is shown in the slides?",["0","1","M","N"],0],
-["Which is an example of one-to-one cardinality in the Topic 4 Part 2 slides?",["A student registers for many courses and each course has many students","Each lecturer has one room and each room is occupied by one lecturer","A lecturer teaches many courses","A sponsor offers scholarships to students"],1],
+["Which is an example of one-to-one cardinality ?",["A student registers for many courses and each course has many students","Each lecturer has one room and each room is occupied by one lecturer","A lecturer teaches many courses","A sponsor offers scholarships to students"],1],
 ["In the relationship LECTURER teaches COURSE, each lecturer can teach many courses and each course is taught by one lecturer. What is the cardinality?",["One-to-one","Many-to-many","One-to-many","Ternary"],2],
 ["In the relationship STUDENT registers COURSE, a student can register for many courses and each course can be registered by many students. What is the cardinality?",["One-to-one","One-to-many","Unary","Many-to-many"],3],
 ["According to the ERD construction guidelines, what should be done with an environment such as RESTAURANT in the slide example?",["Do not make the environment an entity component in the ERM","Make the environment a key","Change the environment into a derived attribute","Always connect the environment to every entity"],0],
-["Which approach is used to build an ERD according to the Topic 4 Part 2 slides?",["Bottom-up only","Top-down","Random modelling","Physical-first"],1]];
+["Which approach is used to build an ERD ?",["Bottom-up only","Top-down","Random modelling","Physical-first"],1]];
 const LV=[{n:"Training Camp",tp:"Entity-Relationship Model (ERD)",s:"Learn the basics and get your first score!",t:30,end:10},{n:"Desert Challenge",tp:"Entity-Relationship Model (ERD)",s:"Targets are on the move – keep your aim steady!",t:25,end:20},{n:"Canyon Rush",tp:"Entity-Relationship Model (ERD)",s:"Boss level! Answer correctly to win!",t:25,end:30}];
 const PAL=[["#5fb0ff","#ffe6b8"],["#e9803c","#ffc684"],["#3a2a66","#ff7b3e"]];
 let G={state:"menu",lv:0,qi:0,score:0,lives:3,ok:0,bad:0,none:0,t:0},snd=true,W=1,H=1,hw=6,hh=4,r=.85,rec=0;
